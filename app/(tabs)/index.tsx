@@ -4,7 +4,6 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { spacing, radius, useThemeColors } from '@/core/theme';
 import { Typography, Button, Card, Badge, ScreenContainer } from '@/components/ui';
-import { TripLifecycleRoadmap } from '@/components/roadmap';
 import { useTrips } from '@/hooks/useTrips';
 import { tripService } from '@/domains/trip/service';
 import { destinationRepository } from '@/db/repositories/destination.repository';
@@ -20,23 +19,67 @@ export default function HomeScreen() {
   const router = useRouter();
   const colors = useThemeColors();
   const { isDarkMode, toggleTheme } = useUIStore();
-  const { t, format } = useI18n();
+  const { t, format, language } = useI18n();
 
   const { trips, isLoading, refreshTrips } = useTrips(true);
   const [moments, setMoments] = useState<MomentRecord[]>([]);
 
-  // Cari trip yang sedang berlangsung (active/ongoing) atau trip mendatang berikutnya
-  const activeTrip = trips.find((t) => t.status === 'ongoing');
-  const upcomingTrip = trips.find(
-    (t) => t.status === 'preparing' || t.status === 'ready' || t.status === 'draft'
-  );
-  const featuredTrip = activeTrip || upcomingTrip;
+  // Ambil semua rencana perjalanan yang sedang aktif / dalam proses (bukan arsip selesai)
+  const planningTrips = trips.filter((t) => t.status !== 'completed');
+  // Jika semua trip sudah selesai atau belum ada trip aktif, tampilkan trip yang ada
+  const displayTrips = planningTrips.length > 0 ? planningTrips : trips.slice(0, 3);
 
   const totalTrips = trips.length;
   const completedTrips = trips.filter((t) => t.status === 'completed').length;
   const activeCount = trips.filter(
     (t) => t.status === 'ongoing' || t.status === 'preparing' || t.status === 'ready'
   ).length;
+
+  const getStageInfo = (status: string) => {
+    switch (status) {
+      case 'ongoing':
+        return {
+          step: '4/5',
+          label: language === 'en' ? 'Ongoing' : 'Dalam Perjalanan',
+          badgeVariant: 'accent' as const,
+          progress: '80%',
+          color: colors.brand.coral,
+        };
+      case 'ready':
+        return {
+          step: '3/5',
+          label: language === 'en' ? 'Ready to Go' : 'Siap Berangkat',
+          badgeVariant: 'success' as const,
+          progress: '60%',
+          color: colors.status.success,
+        };
+      case 'preparing':
+        return {
+          step: '2/5',
+          label: language === 'en' ? 'Preparing' : 'Persiapan',
+          badgeVariant: 'warning' as const,
+          progress: '40%',
+          color: colors.status.warning,
+        };
+      case 'completed':
+        return {
+          step: '5/5',
+          label: language === 'en' ? 'Completed' : 'Selesai',
+          badgeVariant: 'neutral' as const,
+          progress: '100%',
+          color: colors.brand.blue,
+        };
+      case 'draft':
+      default:
+        return {
+          step: '1/5',
+          label: language === 'en' ? 'Draft' : 'Rencana Awal',
+          badgeVariant: 'neutral' as const,
+          progress: '20%',
+          color: colors.text.muted,
+        };
+    }
+  };
 
   useEffect(() => {
     async function loadMoments() {
@@ -183,95 +226,118 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Featured Trip Workspace & Roadmap */}
-        {featuredTrip ? (
+        {/* Section: Rencana Perjalanan / Planning Trips */}
+        {displayTrips.length > 0 ? (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <View style={styles.sectionTitleRow}>
                 <Ionicons
-                  name={activeTrip ? 'flash' : 'calendar'}
+                  name="calendar-clear-outline"
                   size={18}
-                  color={activeTrip ? colors.brand.coral : colors.brand.blue}
+                  color={colors.brand.blue}
                   style={styles.sectionIcon}
                 />
                 <Typography variant="h3" color={colors.text.primary}>
-                  {activeTrip ? t.home.ongoingTripHeading : t.home.upcomingTripHeading}
+                  {language === 'en' ? 'My Travel Plans' : 'Rencana Perjalanan'}
                 </Typography>
               </View>
 
               <Badge
-                label={
-                  featuredTrip.status === 'ongoing'
-                    ? t.home.statusOngoing
-                    : featuredTrip.status === 'ready'
-                    ? t.home.statusReady
-                    : t.home.statusPreparing
-                }
-                variant={
-                  featuredTrip.status === 'ongoing'
-                    ? 'accent'
-                    : featuredTrip.status === 'ready'
-                    ? 'success'
-                    : 'primary'
-                }
+                label={`${displayTrips.length} ${language === 'en' ? 'Plans' : 'Rencana'}`}
+                variant="primary"
                 size="sm"
               />
             </View>
 
-            <Card variant="navy" elevated style={styles.featuredCard}>
-              <View style={styles.heroTop}>
-                <View style={styles.heroTitles}>
-                  <Typography variant="h2" color="#FFFFFF" style={styles.heroTripName}>
-                    {featuredTrip.name}
-                  </Typography>
+            <View style={styles.planningListWrap}>
+              {displayTrips.map((pTrip) => {
+                const stage = getStageInfo(pTrip.status);
+                return (
+                  <Pressable
+                    key={pTrip.id}
+                    onPress={() => router.push(`/trip/${pTrip.id}`)}
+                    style={({ pressed }) => [
+                      styles.softPlanningCard,
+                      {
+                        backgroundColor: colors.surface.card,
+                        borderColor: colors.border.default,
+                      },
+                      pressed && { opacity: 0.9, transform: [{ scale: 0.995 }] },
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel={pTrip.name}
+                  >
+                    {/* Header: Nama Perjalanan & Badge Status */}
+                    <View style={styles.planningCardTop}>
+                      <View style={styles.planningTitleWrap}>
+                        <Typography
+                          variant="h3"
+                          color={colors.brand.navy}
+                          style={styles.planningTripName}
+                          numberOfLines={1}
+                        >
+                          {pTrip.name}
+                        </Typography>
+                      </View>
+                      <Badge
+                        label={stage.label}
+                        variant={stage.badgeVariant}
+                        size="sm"
+                        dot
+                      />
+                    </View>
 
-                  <View style={styles.destRow}>
-                    <Ionicons name="location-sharp" size={15} color="#93C5FD" />
-                    <Typography variant="body" color="#93C5FD" style={styles.heroDestination}>
-                      {featuredTrip.destination}
-                    </Typography>
-                  </View>
-                </View>
-              </View>
+                    {/* Meta: Tujuan & Tanggal Rencana */}
+                    <View style={styles.planningMetaRow}>
+                      <View style={styles.planningMetaItem}>
+                        <Ionicons name="location-outline" size={14} color={colors.brand.blue} />
+                        <Typography
+                          variant="caption"
+                          color={colors.text.secondary}
+                          style={styles.planningMetaText}
+                          numberOfLines={1}
+                        >
+                          {pTrip.destination}
+                        </Typography>
+                      </View>
 
-              {/* Date & Duration Row */}
-              <View style={styles.heroMetaRow}>
-                <View style={styles.heroMetaChip}>
-                  <Ionicons name="calendar-outline" size={13} color="#E2E8F0" />
-                  <Typography variant="caption" color="#E2E8F0" style={styles.metaChipText}>
-                    {formatDateRange(featuredTrip.startDate, featuredTrip.endDate)}
-                  </Typography>
-                </View>
+                      <View style={[styles.planningMetaDivider, { backgroundColor: colors.border.muted }]} />
 
-                <View style={styles.heroMetaChip}>
-                  <Ionicons name="time-outline" size={13} color="#E2E8F0" />
-                  <Typography variant="caption" color="#E2E8F0" style={styles.metaChipText}>
-                    {formatTripDurationLabel(featuredTrip.startDate, featuredTrip.endDate)}
-                  </Typography>
-                </View>
-              </View>
+                      <View style={styles.planningMetaItem}>
+                        <Ionicons name="calendar-outline" size={14} color={colors.text.muted} />
+                        <Typography
+                          variant="caption"
+                          color={colors.text.secondary}
+                          style={styles.planningMetaText}
+                        >
+                          {formatDateRange(pTrip.startDate, pTrip.endDate)}
+                        </Typography>
+                      </View>
+                    </View>
 
-              {/* Progress Roadmap Stepper */}
-              <View style={styles.roadmapBox}>
-                <TripLifecycleRoadmap status={featuredTrip.status} theme="dark" />
-              </View>
+                    {/* Tahap Sekarang: Info & Slim Progress Bar */}
+                    <View style={styles.planningProgressRow}>
+                      <Typography variant="caption" color={colors.text.secondary} style={styles.progressStepText}>
+                        Tahap {stage.step}: {stage.label}
+                      </Typography>
+                      <Ionicons name="chevron-forward" size={16} color={colors.text.muted} />
+                    </View>
 
-              {/* Action Button - Elegant Crisp White Button on Navy Card */}
-              <Pressable
-                onPress={() => router.push(`/trip/${featuredTrip.id}`)}
-                style={({ pressed }) => [
-                  styles.heroWhiteBtn,
-                  pressed && { opacity: 0.9, transform: [{ scale: 0.99 }] },
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel={t.home.openRoadmapBtn}
-              >
-                <Typography variant="label" color="#0A214D" style={styles.heroWhiteBtnText}>
-                  {t.home.openRoadmapBtn}
-                </Typography>
-                <Ionicons name="arrow-forward" size={16} color="#0A214D" style={{ marginLeft: 6 }} />
-              </Pressable>
-            </Card>
+                    <View style={[styles.slimTrack, { backgroundColor: isDarkMode ? '#132857' : '#F1F5F9' }]}>
+                      <View
+                        style={[
+                          styles.slimFill,
+                          {
+                            width: stage.progress as any,
+                            backgroundColor: stage.color,
+                          },
+                        ]}
+                      />
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
         ) : (
           /* Empty State: Quick 1-Tap Travel Presets */
@@ -474,76 +540,72 @@ const styles = StyleSheet.create({
   sectionIcon: {
     marginRight: 6,
   },
-  featuredCard: {
-    padding: spacing[5],
+  planningListWrap: {
+    gap: spacing[3],
   },
-  heroTop: {
-    marginBottom: spacing[3],
+  softPlanningCard: {
+    borderRadius: radius.lg,
+    padding: spacing[4],
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
-  heroTitles: {
-    flex: 1,
-  },
-  heroTripName: {
-    fontSize: 22,
-    fontWeight: '800',
-    marginBottom: 4,
-    letterSpacing: -0.3,
-  },
-  destRow: {
+  planningCardTop: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing[2],
   },
-  heroDestination: {
-    marginLeft: 4,
-    fontWeight: '600',
+  planningTitleWrap: {
+    flex: 1,
+    marginRight: spacing[2],
   },
-  heroMetaRow: {
+  planningTripName: {
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+  },
+  planningMetaRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     flexWrap: 'wrap',
     gap: spacing[2],
-    marginBottom: spacing[4],
+    marginBottom: spacing[3],
   },
-  heroMetaChip: {
+  planningMetaItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    paddingHorizontal: spacing[2],
-    paddingVertical: 4,
-    borderRadius: radius.sm,
+    gap: 4,
   },
-  metaChipText: {
-    marginLeft: 4,
+  planningMetaDivider: {
+    width: 1,
+    height: 12,
+  },
+  planningMetaText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  planningProgressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  progressStepText: {
     fontSize: 11,
+    fontWeight: '600',
   },
-  roadmapBox: {
-    backgroundColor: 'rgba(0, 0, 0, 0.2)',
-    padding: spacing[4],
-    borderRadius: radius.lg,
-    marginBottom: spacing[4],
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+  slimTrack: {
+    height: 5,
+    borderRadius: radius.full,
+    overflow: 'hidden',
   },
-  heroCta: {
-    marginTop: spacing[1],
-  },
-  heroWhiteBtn: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: radius.md,
-    minHeight: 46,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing[4],
-    marginTop: spacing[2],
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  heroWhiteBtnText: {
-    fontWeight: '700',
-    fontSize: 14,
+  slimFill: {
+    height: '100%',
+    borderRadius: radius.full,
   },
   starterBannerCard: {
     padding: spacing[5],

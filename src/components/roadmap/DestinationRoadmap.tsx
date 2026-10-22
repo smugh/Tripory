@@ -1,10 +1,11 @@
 import React from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radius, spacing } from '@/core/theme';
+import { colors, radius, spacing, useThemeColors } from '@/core/theme';
 import { Typography } from '../ui/Typography';
 import { Badge } from '../ui/Badge';
 import { DestinationRecord } from '@/db/schema/destinations';
+import { useUIStore } from '@/stores/ui-store';
 
 export interface DestinationRoadmapProps {
   destinations: DestinationRecord[];
@@ -21,9 +22,12 @@ export const DestinationRoadmap: React.FC<DestinationRoadmapProps> = ({
   onAddStopPress,
   visitedIds = [],
 }) => {
+  const colors = useThemeColors();
+  const isDarkMode = useUIStore((s) => s.isDarkMode);
+
   if (destinations.length === 0) {
     return (
-      <View style={styles.emptyRoadmap}>
+      <View style={[styles.emptyRoadmap, { backgroundColor: colors.surface.card, borderColor: colors.border.default }]}>
         <View style={styles.emptyIconCircle}>
           <Ionicons name="map" size={32} color={colors.brand.coral} />
         </View>
@@ -51,7 +55,7 @@ export const DestinationRoadmap: React.FC<DestinationRoadmapProps> = ({
   return (
     <View style={styles.container}>
       {/* Roadmap Progress Summary */}
-      <View style={styles.summaryBar}>
+      <View style={[styles.summaryBar, { backgroundColor: colors.surface.card, borderColor: colors.border.default }]}>
         <View style={styles.summaryLeft}>
           <Typography variant="caption" color={colors.text.secondary}>
             Progres Kunjungan Destinasi
@@ -83,8 +87,12 @@ export const DestinationRoadmap: React.FC<DestinationRoadmapProps> = ({
                   onPress={() => onToggleVisited && onToggleVisited(dest, idx)}
                   style={[
                     styles.nodeCircle,
+                    { backgroundColor: colors.surface.card, borderColor: colors.border.strong },
                     isVisited && styles.nodeCircleVisited,
-                    isCurrent && styles.nodeCircleCurrent,
+                    isCurrent && [
+                      styles.nodeCircleCurrent,
+                      { borderColor: isDarkMode ? '#FFFFFF' : colors.brand.navy },
+                    ],
                   ]}
                 >
                   {isVisited ? (
@@ -114,8 +122,24 @@ export const DestinationRoadmap: React.FC<DestinationRoadmapProps> = ({
                 <View
                   style={[
                     styles.destinationCard,
-                    isCurrent && styles.destinationCardCurrent,
-                    isVisited && styles.destinationCardVisited,
+                    {
+                      backgroundColor: colors.surface.card,
+                      borderColor: colors.border.default,
+                    },
+                    isCurrent && [
+                      styles.destinationCardCurrent,
+                      {
+                        backgroundColor: isDarkMode ? 'rgba(229, 99, 83, 0.12)' : '#FFF9F8',
+                        borderColor: colors.brand.coral,
+                      },
+                    ],
+                    isVisited && [
+                      styles.destinationCardVisited,
+                      {
+                        backgroundColor: isDarkMode ? 'rgba(22, 163, 74, 0.1)' : '#F6FBF7',
+                        borderColor: isDarkMode ? '#1E3A52' : '#E2E8F0',
+                      },
+                    ],
                   ]}
                 >
                   {/* Meta Bar */}

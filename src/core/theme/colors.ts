@@ -6,13 +6,13 @@
 import { useUIStore } from '@/stores/ui-store';
 
 export const palette = {
-  // Brand Identity Colors
-  primaryNavy: '#071B4D',
-  primaryCoral: '#F56B5F',
-  triporyBlue: '#1769B0',
-  deepBlue: '#0A2B65',
-  sunsetOrange: '#F9A58B',
-  warmYellow: '#FFD68A',
+  // Brand Identity Colors - Refined for visual harmony and eye comfort
+  primaryNavy: '#0A214D',
+  primaryCoral: '#E56353',
+  triporyBlue: '#1E6FB3',
+  deepBlue: '#0E295E',
+  sunsetOrange: '#EB947D',
+  warmYellow: '#ECC574',
 
   // Neutrals (Gray Scale)
   white: '#FFFFFF',
@@ -35,13 +35,13 @@ export const palette = {
   darkBorder: '#183266',
 
   // Semantics
-  success: '#22C36A',
+  success: '#16A34A',
   successLight: '#DCFCE7',
-  error: '#EF4444',
-  errorLight: '#FEE2E2',
-  warning: '#F9B508',
+  error: '#E11D48',
+  errorLight: '#FFE4E6',
+  warning: '#D97706',
   warningLight: '#FEF3C7',
-  info: '#3B82F6',
+  info: '#2563EB',
   infoLight: '#DBEAFE',
 } as const;
 

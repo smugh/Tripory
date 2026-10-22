@@ -226,8 +226,8 @@ export default function HomeScreen() {
                   </Typography>
 
                   <View style={styles.destRow}>
-                    <Ionicons name="location-sharp" size={15} color={colors.brand.coral} />
-                    <Typography variant="body" color={colors.brand.coral} style={styles.heroDestination}>
+                    <Ionicons name="location-sharp" size={15} color="#93C5FD" />
+                    <Typography variant="body" color="#93C5FD" style={styles.heroDestination}>
                       {featuredTrip.destination}
                     </Typography>
                   </View>
@@ -237,15 +237,15 @@ export default function HomeScreen() {
               {/* Date & Duration Row */}
               <View style={styles.heroMetaRow}>
                 <View style={styles.heroMetaChip}>
-                  <Ionicons name="calendar-outline" size={13} color="#FFFFFF" />
-                  <Typography variant="caption" color="#FFFFFF" style={styles.metaChipText}>
+                  <Ionicons name="calendar-outline" size={13} color="#E2E8F0" />
+                  <Typography variant="caption" color="#E2E8F0" style={styles.metaChipText}>
                     {formatDateRange(featuredTrip.startDate, featuredTrip.endDate)}
                   </Typography>
                 </View>
 
                 <View style={styles.heroMetaChip}>
-                  <Ionicons name="time-outline" size={13} color="#FFFFFF" />
-                  <Typography variant="caption" color="#FFFFFF" style={styles.metaChipText}>
+                  <Ionicons name="time-outline" size={13} color="#E2E8F0" />
+                  <Typography variant="caption" color="#E2E8F0" style={styles.metaChipText}>
                     {formatTripDurationLabel(featuredTrip.startDate, featuredTrip.endDate)}
                   </Typography>
                 </View>
@@ -256,14 +256,21 @@ export default function HomeScreen() {
                 <TripLifecycleRoadmap status={featuredTrip.status} theme="dark" />
               </View>
 
-              {/* Action Button */}
-              <Button
-                label={t.home.openRoadmapBtn}
-                variant="accent"
-                size="md"
+              {/* Action Button - Elegant Crisp White Button on Navy Card */}
+              <Pressable
                 onPress={() => router.push(`/trip/${featuredTrip.id}`)}
-                style={styles.heroCta}
-              />
+                style={({ pressed }) => [
+                  styles.heroWhiteBtn,
+                  pressed && { opacity: 0.9, transform: [{ scale: 0.99 }] },
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel={t.home.openRoadmapBtn}
+              >
+                <Typography variant="label" color="#0A214D" style={styles.heroWhiteBtnText}>
+                  {t.home.openRoadmapBtn}
+                </Typography>
+                <Ionicons name="arrow-forward" size={16} color="#0A214D" style={{ marginLeft: 6 }} />
+              </Pressable>
             </Card>
           </View>
         ) : (
@@ -518,6 +525,25 @@ const styles = StyleSheet.create({
   },
   heroCta: {
     marginTop: spacing[1],
+  },
+  heroWhiteBtn: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: radius.md,
+    minHeight: 46,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing[4],
+    marginTop: spacing[2],
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  heroWhiteBtnText: {
+    fontWeight: '700',
+    fontSize: 14,
   },
   starterBannerCard: {
     padding: spacing[5],

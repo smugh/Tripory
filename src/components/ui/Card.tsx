@@ -23,13 +23,13 @@ export const Card: React.FC<CardProps> = ({
     switch (variant) {
       case 'navy':
         return {
-          backgroundColor: isDarkMode ? '#0A255C' : '#071B4D',
-          borderColor: isDarkMode ? '#1E3A8A' : '#0A2B65',
+          backgroundColor: isDarkMode ? '#0A1C40' : '#0E234D',
+          borderColor: isDarkMode ? '#1A3568' : '#1A3772',
         };
       case 'accent':
         return {
-          backgroundColor: isDarkMode ? '#2D1418' : '#FFF5F4',
-          borderColor: isDarkMode ? '#501D24' : '#FED7D4',
+          backgroundColor: isDarkMode ? '#271418' : '#FFF7F6',
+          borderColor: isDarkMode ? '#481E24' : '#FCDAD7',
         };
       case 'muted':
         return {

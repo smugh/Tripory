@@ -405,7 +405,7 @@ export default function TripDetailScreen() {
             {trip.name}
           </Typography>
           <View style={styles.destRow}>
-            <Ionicons name="location-sharp" size={16} color={colors.brand.coral} />
+            <Ionicons name="location-sharp" size={16} color="#93C5FD" />
             <Typography variant="body" color="#F1F5F9" style={styles.heroDest}>
               {trip.destination}
             </Typography>

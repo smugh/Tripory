@@ -6,6 +6,7 @@ import { Typography } from '../ui/Typography';
 import { Badge } from '../ui/Badge';
 import { DestinationRecord } from '@/db/schema/destinations';
 import { useUIStore } from '@/stores/ui-store';
+import { useI18n } from '@/core/i18n';
 
 export interface DestinationRoadmapProps {
   destinations: DestinationRecord[];
@@ -24,6 +25,7 @@ export const DestinationRoadmap: React.FC<DestinationRoadmapProps> = ({
 }) => {
   const colors = useThemeColors();
   const isDarkMode = useUIStore((s) => s.isDarkMode);
+  const { t, format, language } = useI18n();
 
   if (destinations.length === 0) {
     return (
@@ -32,16 +34,16 @@ export const DestinationRoadmap: React.FC<DestinationRoadmapProps> = ({
           <Ionicons name="map" size={32} color={colors.brand.coral} />
         </View>
         <Typography variant="h3" color={colors.brand.navy} style={styles.emptyTitle}>
-          Roadmap Destinasi Masih Kosong
+          {t.trip.emptyRoadmapTitle}
         </Typography>
         <Typography variant="body" color={colors.text.secondary} style={styles.emptyDesc}>
-          Tambahkan titik persinggahan untuk melihat jalur timeline dan progres perjalanan Anda.
+          {t.trip.emptyRoadmapDesc}
         </Typography>
         {onAddStopPress ? (
           <Pressable style={styles.addCtaButton} onPress={onAddStopPress}>
             <Ionicons name="add-circle-outline" size={18} color="#FFFFFF" />
             <Typography variant="label" color="#FFFFFF" style={styles.addCtaText}>
-              Tambah Titik Pertama
+              {t.trip.addFirstStopBtn}
             </Typography>
           </Pressable>
         ) : null}
@@ -58,14 +60,14 @@ export const DestinationRoadmap: React.FC<DestinationRoadmapProps> = ({
       <View style={[styles.summaryBar, { backgroundColor: colors.surface.card, borderColor: colors.border.default }]}>
         <View style={styles.summaryLeft}>
           <Typography variant="caption" color={colors.text.secondary}>
-            Progres Kunjungan Destinasi
+            {t.trip.destProgressTitle}
           </Typography>
           <Typography variant="h3" color={colors.brand.navy}>
-            {visitedCount} dari {destinations.length} Titik Selesai
+            {format(t.trip.destProgressSubtitle, { visited: visitedCount, total: destinations.length })}
           </Typography>
         </View>
         <Badge
-          label={`${progressPercent}% Tercapai`}
+          label={format(t.trip.visitedPercent, { percent: progressPercent })}
           variant={progressPercent === 100 ? 'success' : 'accent'}
           dot
         />
@@ -146,7 +148,7 @@ export const DestinationRoadmap: React.FC<DestinationRoadmapProps> = ({
                   <View style={styles.metaRow}>
                     <View style={styles.dayBadge}>
                       <Typography variant="caption" color={colors.brand.navy} style={styles.dayBadgeText}>
-                        HARI {dest.dayNumber || idx + 1}
+                        {format(t.trip.dayPrefix, { day: dest.dayNumber || idx + 1 })}
                       </Typography>
                     </View>
 
@@ -154,17 +156,17 @@ export const DestinationRoadmap: React.FC<DestinationRoadmapProps> = ({
                       <View style={styles.timeWrap}>
                         <Ionicons name="time-outline" size={12} color={colors.text.muted} />
                         <Typography variant="caption" color={colors.text.muted} style={styles.timeText}>
-                          {dest.plannedTime} WIB
+                          {dest.plannedTime}
                         </Typography>
                       </View>
                     ) : null}
 
                     {isVisited ? (
-                      <Badge label="Tercapai" variant="success" size="sm" />
+                      <Badge label={t.trip.statusVisited} variant="success" size="sm" />
                     ) : isCurrent ? (
-                      <Badge label="Titik Aktif" variant="accent" size="sm" dot />
+                      <Badge label={t.trip.activeStopBadge} variant="accent" size="sm" dot />
                     ) : (
-                      <Badge label="Rencana" variant="neutral" size="sm" />
+                      <Badge label={t.trip.statusPlanned} variant="neutral" size="sm" />
                     )}
                   </View>
 
@@ -214,7 +216,7 @@ export const DestinationRoadmap: React.FC<DestinationRoadmapProps> = ({
                           color={isVisited ? colors.status.success : colors.brand.coral}
                           style={styles.actionPillText}
                         >
-                          {isVisited ? 'Selesai Dikunjungi' : 'Tandai Dikunjungi'}
+                          {isVisited ? t.trip.visitedBtn : t.trip.markVisitedBtn}
                         </Typography>
                       </Pressable>
                     </View>

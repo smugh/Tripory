@@ -8,7 +8,7 @@ import { tripService } from '@/domains/trip/service';
 import { destinationRepository } from '@/db/repositories/destination.repository';
 import { packingRepository } from '@/db/repositories/packing.repository';
 import { formatTripDurationLabel } from '@/core/utils';
-import { TRIP_PRESETS, TripPreset } from '@/core/constants';
+import { getTripPresets, TripPreset } from '@/core/constants';
 import { useUIStore } from '@/stores/ui-store';
 import { useI18n } from '@/core/i18n';
 
@@ -16,7 +16,9 @@ export default function NewTripScreen() {
   const router = useRouter();
   const themeColors = useThemeColors();
   const isDarkMode = useUIStore((s) => s.isDarkMode);
-  const { language } = useI18n();
+  const { t, language } = useI18n();
+
+  const presets = getTripPresets(language);
 
   // Helper formatting YYYY-MM-DD
   const formatDateYmd = (d: Date) => d.toISOString().split('T')[0];
@@ -26,11 +28,11 @@ export default function NewTripScreen() {
   const nextWeekend = new Date();
   nextWeekend.setDate(now.getDate() + ((6 - now.getDay() + 7) % 7 || 7));
 
-  const [selectedPreset, setSelectedPreset] = useState<TripPreset | null>(TRIP_PRESETS[0]);
-  const [name, setName] = useState(TRIP_PRESETS[0].title);
-  const [destination, setDestination] = useState(TRIP_PRESETS[0].destination);
+  const [selectedPreset, setSelectedPreset] = useState<TripPreset | null>(presets[0]);
+  const [name, setName] = useState(presets[0].title);
+  const [destination, setDestination] = useState(presets[0].destination);
   const [startDate, setStartDate] = useState(formatDateYmd(tomorrow));
-  const [durationDays, setDurationDays] = useState(TRIP_PRESETS[0].durationDays);
+  const [durationDays, setDurationDays] = useState(presets[0].durationDays);
   const [notes, setNotes] = useState('');
   const [includeStarterPack, setIncludeStarterPack] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -44,7 +46,7 @@ export default function NewTripScreen() {
   };
 
   const endDate = computeEndDate(startDate, durationDays);
-  const durationLabel = formatTripDurationLabel(startDate, endDate);
+  const durationLabel = formatTripDurationLabel(startDate, endDate, language);
 
   const applyPreset = (preset: TripPreset) => {
     setSelectedPreset(preset);
@@ -59,7 +61,7 @@ export default function NewTripScreen() {
 
   const handleCreate = async () => {
     if (!name.trim() || !destination.trim()) {
-      Alert.alert('Perhatian', 'Nama perjalanan dan destinasi utama wajib diisi.');
+      Alert.alert(language === 'en' ? 'Required' : 'Perhatian', t.newTrip.alertRequired);
       return;
     }
 
@@ -111,43 +113,33 @@ export default function NewTripScreen() {
 
       router.replace(`/trip/${trip.id}`);
     } catch (err) {
-      Alert.alert('Gagal Membuat Trip', err instanceof Error ? err.message : 'Terjadi kesalahan');
+      Alert.alert(t.newTrip.alertCreateError, err instanceof Error ? err.message : 'Error');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <ScreenContainer>
+    <ScreenContainer edges={['left', 'right', 'bottom']}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Top Back Navigation */}
-        <Pressable onPress={() => router.back()} style={styles.backRow}>
-          <Ionicons name="arrow-back" size={20} color={themeColors.brand.navy} />
-          <Typography variant="label" color={themeColors.brand.navy} style={styles.backText}>
-            {language === 'en' ? 'Back' : 'Kembali'}
-          </Typography>
-        </Pressable>
-
         {/* Wizard Header */}
         <View style={styles.header}>
           <Typography variant="h2" color={themeColors.brand.navy} style={styles.headerTitle}>
-            {language === 'en' ? 'Plan Your Journey' : 'Rencanakan Perjalanan Anda'}
+            {t.newTrip.headerTitle}
           </Typography>
           <Typography variant="body" color={themeColors.text.secondary}>
-            {language === 'en'
-              ? 'Choose a quick template or customize your schedule details.'
-              : 'Pilih template kilat atau sesuaikan rincian jadwal perjalanan Anda.'}
+            {t.newTrip.headerDesc}
           </Typography>
         </View>
 
         {/* SECTION 1: TEMPLATE PERJALANAN INSTAN */}
         <View style={styles.sectionWrap}>
           <Typography variant="label" color={themeColors.brand.navy} style={styles.sectionTitle}>
-            {language === 'en' ? '1. Select Quick Template (Recommended)' : '1. Pilih Template Kilat (Rekomendasi)'}
+            {t.newTrip.step1Title}
           </Typography>
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.presetsList}>
-            {TRIP_PRESETS.map((preset) => {
+            {presets.map((preset) => {
               const isSelected = selectedPreset?.id === preset.id;
               return (
                 <Pressable
@@ -203,26 +195,26 @@ export default function NewTripScreen() {
         {/* SECTION 2: DETAIL PERJALANAN */}
         <Card elevated style={[styles.formCard, { backgroundColor: themeColors.surface.card, borderColor: themeColors.border.default }]}>
           <Typography variant="label" color={themeColors.brand.navy} style={styles.sectionTitle}>
-            {language === 'en' ? '2. Customize Trip Information' : '2. Sesuaikan Informasi Perjalanan'}
+            {t.newTrip.step2Title}
           </Typography>
 
           <Input
-            label={language === 'en' ? 'Trip Name *' : 'Nama Perjalanan *'}
-            placeholder={language === 'en' ? 'e.g. Weekend Getaway' : 'Contoh: Liburan Seru Akhir Pekan'}
+            label={t.newTrip.nameLabel}
+            placeholder={t.newTrip.namePlaceholder}
             value={name}
             onChangeText={setName}
           />
 
           <Input
-            label={language === 'en' ? 'Main Destination *' : 'Destinasi Utama *'}
-            placeholder={language === 'en' ? 'e.g. Puncak, Bogor' : 'Contoh: Puncak, Bogor'}
+            label={t.newTrip.destLabel}
+            placeholder={t.newTrip.destPlaceholder}
             value={destination}
             onChangeText={setDestination}
           />
 
           {/* Quick Date Shortcuts */}
           <Typography variant="label" color={themeColors.text.primary} style={styles.fieldLabel}>
-            {language === 'en' ? 'Departure Date' : 'Waktu Keberangkatan'}
+            {t.newTrip.dateLabel}
           </Typography>
           <View style={styles.dateShortcutsRow}>
             <Pressable
@@ -238,7 +230,7 @@ export default function NewTripScreen() {
                 color={startDate === formatDateYmd(now) ? '#FFFFFF' : themeColors.text.secondary}
                 style={styles.pillText}
               >
-                {language === 'en' ? 'Today' : 'Hari Ini'}
+                {t.newTrip.today}
               </Typography>
             </Pressable>
 
@@ -255,7 +247,7 @@ export default function NewTripScreen() {
                 color={startDate === formatDateYmd(tomorrow) ? '#FFFFFF' : themeColors.text.secondary}
                 style={styles.pillText}
               >
-                {language === 'en' ? 'Tomorrow' : 'Besok'}
+                {t.newTrip.tomorrow}
               </Typography>
             </Pressable>
 
@@ -272,18 +264,18 @@ export default function NewTripScreen() {
                 color={startDate === formatDateYmd(nextWeekend) ? '#FFFFFF' : themeColors.text.secondary}
                 style={styles.pillText}
               >
-                {language === 'en' ? 'Next Weekend' : 'Akhir Pekan'}
+                {t.newTrip.nextWeekend}
               </Typography>
             </Pressable>
           </View>
 
           {/* Duration Selector */}
           <Typography variant="label" color={themeColors.text.primary} style={styles.fieldLabel}>
-            {language === 'en' ? 'Trip Duration' : 'Durasi Perjalanan'}
+            {t.newTrip.durationLabel}
           </Typography>
           <View style={styles.durationPillsRow}>
             {[
-              { days: 1, label: language === 'en' ? '1 Day' : '1 Hari' },
+              { days: 1, label: t.newTrip.duration1D },
               { days: 2, label: '2D 1N' },
               { days: 3, label: '3D 2N' },
               { days: 4, label: '4D 3N' },
@@ -317,7 +309,7 @@ export default function NewTripScreen() {
                 {durationLabel}
               </Typography>
               <Typography variant="caption" color={themeColors.text.secondary}>
-                {startDate} {language === 'en' ? 'to' : 'sampai'} {endDate}
+                {startDate} {t.newTrip.to} {endDate}
               </Typography>
             </View>
           </View>
@@ -326,12 +318,10 @@ export default function NewTripScreen() {
           <View style={[styles.switchRow, { borderTopColor: themeColors.border.muted }]}>
             <View style={styles.switchInfo}>
               <Typography variant="label" color={themeColors.brand.navy}>
-                {language === 'en' ? 'Include Starter Roadmap & Checklist' : 'Sertakan Roadmap & Checklist Starter'}
+                {t.newTrip.starterPackLabel}
               </Typography>
               <Typography variant="caption" color={themeColors.text.secondary}>
-                {language === 'en'
-                  ? 'Automatically pre-fills 3 destination stops and essential items.'
-                  : 'Otomatis mengisi 3 titik destinasi dan barang esensial agar Anda tidak perlu mengetik dari nol.'}
+                {t.newTrip.starterPackDesc}
               </Typography>
             </View>
             <Switch
@@ -344,7 +334,7 @@ export default function NewTripScreen() {
 
           {/* Submit CTA */}
           <Button
-            label={language === 'en' ? '🚀 Create & Open Trip Roadmap' : '🚀 Buat & Buka Roadmap Perjalanan'}
+            label={t.newTrip.submitBtn}
             variant="accent"
             size="lg"
             isLoading={isSubmitting}

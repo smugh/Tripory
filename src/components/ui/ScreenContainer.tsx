@@ -7,19 +7,21 @@ export interface ScreenContainerProps {
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
   withPadding?: boolean;
+  edges?: ('top' | 'bottom' | 'left' | 'right')[];
 }
 
 export const ScreenContainer: React.FC<ScreenContainerProps> = ({
   children,
   style,
   withPadding = true,
+  edges = ['top', 'left', 'right'],
 }) => {
   const colors = useThemeColors();
 
   return (
     <SafeAreaView
       style={[styles.safeArea, { backgroundColor: colors.surface.page }]}
-      edges={['top', 'left', 'right']}
+      edges={edges}
     >
       <View
         style={[

@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors } from '@/core/theme';
 import { useUIStore } from '@/stores/ui-store';
 import { useI18n } from '@/core/i18n';
+import { Typography } from '@/components/ui';
 
 export default function TabLayout() {
   const router = useRouter();
@@ -21,8 +22,8 @@ export default function TabLayout() {
           backgroundColor: colors.surface.card,
           borderTopColor: colors.border.default,
           height: 68,
-          paddingBottom: 10,
-          paddingTop: 8,
+          paddingBottom: 8,
+          paddingTop: 6,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: -2 },
           shadowOpacity: isDarkMode ? 0.3 : 0.06,
@@ -80,7 +81,7 @@ export default function TabLayout() {
         }}
       />
 
-      {/* Tombol Tengah: Buat Trip Baru */}
+      {/* Tombol Tengah: Buat Trip Baru (Proporsional & Travel-Themed) */}
       <Tabs.Screen
         name="create"
         options={{
@@ -94,15 +95,21 @@ export default function TabLayout() {
                   styles.centerButton,
                   {
                     backgroundColor: colors.brand.coral,
-                    borderColor: colors.surface.card,
                   },
                   pressed && styles.centerButtonPressed,
                 ]}
                 accessibilityLabel="Buat Trip Baru"
                 accessibilityRole="button"
               >
-                <Ionicons name="add" size={30} color="#FFFFFF" />
+                <Ionicons name="paper-plane" size={20} color="#FFFFFF" style={styles.planeIcon} />
               </Pressable>
+              <Typography
+                variant="caption"
+                color={colors.brand.coral}
+                style={styles.centerButtonLabel}
+              >
+                {t.tabs.create}
+              </Typography>
             </View>
           ),
         }}
@@ -149,26 +156,36 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   centerButtonOuter: {
-    top: -16,
     justifyContent: 'center',
     alignItems: 'center',
-    width: 60,
+    width: 64,
+    height: '100%',
+    paddingTop: 1,
   },
   centerButton: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 44,
+    height: 34,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#F56B5F',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    elevation: 8,
-    borderWidth: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.16,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  planeIcon: {
+    marginLeft: -1,
+    marginTop: -1,
+  },
+  centerButtonLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    marginTop: 3,
+    letterSpacing: 0.2,
   },
   centerButtonPressed: {
-    transform: [{ scale: 0.92 }],
-    opacity: 0.9,
+    transform: [{ scale: 0.94 }],
+    opacity: 0.88,
   },
 });

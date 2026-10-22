@@ -17,6 +17,14 @@ export const en = {
     settingsHeader: 'Settings & System',
   },
 
+  // Splash & App Initialization
+  splash: {
+    tagline: 'Plan • Explore • Capture • Remember',
+    loading: 'Preparing your journey...',
+    dbErrorTitle: 'Database Connection Error',
+    retryBtn: 'Retry Loading',
+  },
+
   // Home Screen
   home: {
     totalTrips: 'Total Trips',
@@ -24,10 +32,15 @@ export const en = {
     completedTrips: 'Completed',
     ongoingTripHeading: 'Trip in Progress',
     upcomingTripHeading: 'Upcoming Trip',
+    myPlansHeading: 'My Travel Plans',
+    plansBadge: '{count} Plans',
+    onePlanBadge: '1 Plan',
+    stagePrefix: 'Stage {step}: {label}',
     statusOngoing: 'On the Road',
     statusReady: 'Ready to Go',
     statusPreparing: 'Preparation',
     statusDraft: 'Draft Plan',
+    statusCompleted: 'Completed',
     openRoadmapBtn: 'Open Roadmap & Checklist →',
     startPlanningTitle: 'Start Planning a Trip',
     startPlanningDesc: 'Choose an instant template below to auto-generate your roadmap stops and packing checklist.',
@@ -36,6 +49,8 @@ export const en = {
     onePhotoBadge: '1 Photo',
     emptyAlbumTitle: 'No Photos in Album Yet',
     emptyAlbumDesc: 'Capture photos or choose from gallery during trips to showcase your travel memories here.',
+    daysSuffix: 'Days',
+    oneDaySuffix: 'Day',
   },
 
   // Settings Screen
@@ -117,6 +132,74 @@ export const en = {
     understood: 'Understood',
   },
 
+  // Trips Tab Screen
+  tripsList: {
+    filterAll: 'All',
+    filterActive: 'Active',
+    filterPreparing: 'Preparing',
+    filterDone: 'Done',
+    emptyTitle: 'No journeys found',
+    emptyDesc: 'Tap the New Trip button in the bottom navigation to start your next trip.',
+    createBtn: 'Create New Trip',
+    openWorkspace: 'Open Roadmap & Workspace',
+    missingWarning: 'Items missing from return check',
+    statusOngoing: 'On the Road',
+    statusDone: 'Done',
+    statusReady: 'Ready',
+    statusPlanning: 'Planning',
+  },
+
+  // Inventory Tab Screen
+  inventory: {
+    itemCount: '{count} Registered Items',
+    itemCountOne: '1 Registered Item',
+    addItemBtn: '+ Add Item',
+    quickBundlesLabel: 'Quick Bundles (1-Tap):',
+    allCategory: 'All',
+    emptyTitle: 'No items in inventory',
+    emptyDesc: 'Pick a Quick Bundle above or create items manually.',
+    emptyAction: 'Add Item Manually',
+    qtyLabel: 'Qty:',
+    modalTitle: 'Add to Inventory',
+    nameLabel: 'Item Name *',
+    namePlaceholder: 'e.g. Windbreaker, 65W GaN Charger',
+    categoryLabel: 'Category',
+    qtyInputLabel: 'Standard Quantity',
+    notesLabel: 'Notes (Optional)',
+    notesPlaceholder: 'e.g. Inside pocket, black color',
+    cancelBtn: 'Cancel',
+    saveBtn: 'Save Item',
+    alertNameRequired: 'Item name cannot be empty.',
+    alertSaveError: 'Unable to save new item.',
+    alertBundleAdded: '{title} ({count} items) added to inventory.',
+    alertBundleError: 'Could not add bundle items.',
+  },
+
+  // Create Trip Screen
+  newTrip: {
+    screenTitle: 'Create Trip',
+    headerTitle: 'Plan Your Journey',
+    headerDesc: 'Choose a quick template or customize your schedule details.',
+    step1Title: '1. Select Quick Template (Recommended)',
+    step2Title: '2. Customize Trip Information',
+    nameLabel: 'Trip Name *',
+    namePlaceholder: 'e.g. Weekend Getaway',
+    destLabel: 'Main Destination *',
+    destPlaceholder: 'e.g. Puncak, Bogor',
+    dateLabel: 'Departure Date',
+    durationLabel: 'Trip Duration',
+    today: 'Today',
+    tomorrow: 'Tomorrow',
+    nextWeekend: 'Next Weekend',
+    duration1D: '1 Day',
+    to: 'to',
+    starterPackLabel: 'Include Starter Roadmap & Checklist',
+    starterPackDesc: 'Automatically pre-fills 3 destination stops and essential items.',
+    submitBtn: '🚀 Create & Open Trip Roadmap',
+    alertRequired: 'Trip name and destination are required.',
+    alertCreateError: 'Failed to Create Trip',
+  },
+
   // Trip Detail & Workspace
   trip: {
     details: 'Trip Details',
@@ -154,6 +237,7 @@ export const en = {
     locationTagPlaceholder: 'Place / city name...',
     gpsBtn: 'GPS',
     saveMomentBtn: '💾 Save Offline Memory',
+    savingMomentBtn: 'Saving...',
     galleryTitle: 'Memories Gallery ({count})',
     noMemoriesYet: 'No memories saved yet',
     noMemoriesDesc: 'Use the camera or gallery buttons above to start capturing your journey memories offline.',
@@ -173,11 +257,24 @@ export const en = {
     filterAll: 'All ({count})',
     filterUnpacked: 'Need Packing ({count})',
     filterPacked: 'Packed ({count})',
+    emptyItemsDesc: 'No items in this filter. Pick a quick bundle above or add items below.',
     manualAddTitle: 'Add Item Manually',
     manualAddPlaceholder: 'Type item name...',
     addChecklistBtn: '+ Add to Checklist',
+
+    // Priorities
+    priorityMustHave: 'Must Have',
+    priorityConditional: 'Conditional',
+    priorityOptional: 'Optional',
+
+    // Status Badges
+    badgeArchived: 'Archived',
+    badgeOngoing: 'On the Road',
+    badgeReady: 'Ready to Go',
+    badgePreparing: 'Preparing',
+    badgeDraft: 'Draft',
     
-    // Destinations
+    // Destinations Roadmap
     destProgressTitle: 'Destinations Visited',
     destProgressSubtitle: '{visited} of {total} Stops Completed',
     visitedPercent: '{percent}% Achieved',
@@ -185,16 +282,65 @@ export const en = {
     visitedBtn: 'Visited ✓',
     activeStopBadge: 'Active Stop',
     dayPrefix: 'DAY {day}',
-    addDestinationBtn: '+ Add Custom Stop',
+    emptyRoadmapTitle: 'Destination Roadmap is Empty',
+    emptyRoadmapDesc: 'Add stops to visualize your travel timeline and route progression.',
+    addFirstStopBtn: 'Add First Stop',
+    addStopHeading: 'Add New Stop to Roadmap',
+    quickPickLabel: 'Quick Suggestions:',
+    stopNameLabel: 'Place Name / Stop *',
+    stopNamePlaceholder: 'e.g. Scenic Overlook / Morning Cafe',
+    stopActivityLabel: 'Planned Activity',
+    stopActivityPlaceholder: 'e.g. Breakfast, Photo session, Trekking',
+    stopTimeLabel: 'Estimated Time',
+    saveStopBtn: '+ Save to Roadmap',
+    addStopTriggerBtn: '+ Add Stop to Roadmap',
+    statusVisited: 'Visited',
+    statusPlanned: 'Planned',
+
+    // Trip Closure
+    closeSectionTitle: 'Finish & Close Trip',
+    closeSectionDesc: 'Perform return check and archive this journey. If any items remain unverified, the system will keep them as unreturned records without blocking closure.',
+    closeSectionBtn: 'Close & Archive This Trip',
+    closeModalTitle: 'Close & Complete Journey?',
+    closeModalDesc: 'Closing the trip will move it to memories archive. If any items are not verified back, they will be saved safely without blocking closure.',
+    closeModalAction: 'Close & Save Memories',
+    closeModalSuccessAllTitle: 'Congratulations!',
+    closeModalSuccessAllMsg: 'All items were successfully verified. Your trip is saved in Tripory memories.',
+    closeModalSuccessMissingTitle: 'Trip Completed & Archived',
+    closeModalSuccessMissingMsg: 'Trip closed. Note: {count} unverified items were saved to the trip archive.',
+
+    // Alerts
+    alertLoadError: 'Failed to load trip data.',
+    alertUpdateStatusError: 'Unable to update trip status.',
+    alertBundleAdded: '{title} ({count} items) added to checklist.',
+    alertDestRequired: 'Destination name is required.',
+    alertDestAddError: 'Could not add destination.',
+    alertItemAddError: 'Could not add item.',
+    alertItemUpdateError: 'Could not update item.',
+    alertAllPackedSuccess: 'All items marked as packed!',
+    alertCameraError: 'Unable to take photo using camera.',
+    alertGalleryError: 'Unable to pick photo from gallery.',
+    alertMomentRequired: 'Please take/pick a photo or write a memory note.',
+    alertMomentSaved: 'Journey memory saved offline to device.',
+    alertMomentSaveError: 'Could not save memory note.',
+    alertMomentDeleteError: 'Could not delete memory.',
+    alertTripCloseError: 'Could not close trip.',
+    loadingTrip: 'Loading journey...',
+    tripNotFound: 'Trip not found.',
   },
 
   // Lifecycle Stages
   stages: {
     plan: 'Plan',
+    planDesc: 'Set schedule & stops',
     pack: 'Pack',
+    packDesc: 'Prepare items & blockers',
     explore: 'Explore',
+    exploreDesc: 'Enjoy active trail',
     return: 'Return Check',
+    returnDesc: 'Reconcile on homecoming',
     completed: 'Done',
+    completedDesc: 'Memories safely archived',
   },
 };
 
@@ -203,4 +349,3 @@ type DeepString<T> = {
 };
 
 export type TranslationDictionary = DeepString<typeof en>;
-

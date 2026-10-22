@@ -15,13 +15,26 @@ export function calculateDurationDays(startDateIso: string, endDateIso: string):
   return Math.max(1, diffDays);
 }
 
-export function formatTripDurationLabel(startDateIso: string, endDateIso: string): string {
+export function formatTripDurationLabel(
+  startDateIso: string,
+  endDateIso: string,
+  language: 'en' | 'id' = 'en'
+): string {
   const days = calculateDurationDays(startDateIso, endDateIso);
   const nights = Math.max(0, days - 1);
+  if (language === 'en') {
+    const dayStr = days === 1 ? '1 Day' : `${days} Days`;
+    const nightStr = nights === 1 ? '1 Night' : `${nights} Nights`;
+    return `${dayStr} ${nightStr}`;
+  }
   return `${days} Hari ${nights} Malam`;
 }
 
-export function formatDateRange(startDateIso: string, endDateIso: string): string {
+export function formatDateRange(
+  startDateIso: string,
+  endDateIso: string,
+  language: 'en' | 'id' = 'en'
+): string {
   const start = new Date(startDateIso);
   const end = new Date(endDateIso);
   
@@ -29,11 +42,13 @@ export function formatDateRange(startDateIso: string, endDateIso: string): strin
     return `${startDateIso} - ${endDateIso}`;
   }
 
-  const startFormatted = start.toLocaleDateString('id-ID', {
+  const locale = language === 'en' ? 'en-US' : 'id-ID';
+
+  const startFormatted = start.toLocaleDateString(locale, {
     day: 'numeric',
     month: 'short',
   });
-  const endFormatted = end.toLocaleDateString('id-ID', {
+  const endFormatted = end.toLocaleDateString(locale, {
     day: 'numeric',
     month: 'short',
     year: 'numeric',

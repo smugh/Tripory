@@ -19,6 +19,14 @@ export const id: TranslationDictionary = {
     settingsHeader: 'Pengaturan & Sistem',
   },
 
+  // Splash & Inisialisasi Aplikasi
+  splash: {
+    tagline: 'Plan • Explore • Capture • Remember',
+    loading: 'Menyiapkan perjalanan Anda...',
+    dbErrorTitle: 'Terjadi Gangguan Database',
+    retryBtn: 'Coba Muat Ulang',
+  },
+
   // Beranda
   home: {
     totalTrips: 'Total Trip',
@@ -26,10 +34,15 @@ export const id: TranslationDictionary = {
     completedTrips: 'Arsip Selesai',
     ongoingTripHeading: 'Perjalanan Sedang Berlangsung',
     upcomingTripHeading: 'Perjalanan Terdekat',
+    myPlansHeading: 'Rencana Perjalanan',
+    plansBadge: '{count} Rencana',
+    onePlanBadge: '1 Rencana',
+    stagePrefix: 'Tahap {step}: {label}',
     statusOngoing: 'Dalam Perjalanan',
     statusReady: 'Siap Berangkat',
     statusPreparing: 'Persiapan',
-    statusDraft: 'Rencana',
+    statusDraft: 'Rencana Awal',
+    statusCompleted: 'Selesai',
     openRoadmapBtn: 'Buka Roadmap & Checklist Perjalanan →',
     startPlanningTitle: 'Mulai Rencanakan Perjalanan',
     startPlanningDesc: 'Gunakan template kilat 1-sentuh di bawah untuk langsung membuat rute dan checklist starter.',
@@ -38,6 +51,8 @@ export const id: TranslationDictionary = {
     onePhotoBadge: '1 Foto',
     emptyAlbumTitle: 'Belum Ada Foto di Album',
     emptyAlbumDesc: 'Abadikan foto atau pilih dari galeri saat perjalanan untuk memajang album kenangan di sini.',
+    daysSuffix: 'Hari',
+    oneDaySuffix: 'Hari',
   },
 
   // Pengaturan
@@ -99,24 +114,92 @@ export const id: TranslationDictionary = {
     offlineOnly: '100% Offline (No Cloud)',
     
     // Data & Privasi
-    dataSection: 'Data & Privasi Lokal',
-    securityBackup: 'Informasi Keamanan & Backup',
+    dataSection: 'Data Lokal & Privasi',
+    securityBackup: 'Keamanan & Info Cadangan',
     securityBackupDesc: 'Data tersimpan aman di file tripory.db lokal',
-    exportSummary: 'Ekspor Ringkasan Catatan',
-    exportSummaryDesc: 'Simpan ringkasan arsip perjalanan yang telah selesai',
+    exportSummary: 'Ekspor Ringkasan Perjalanan',
+    exportSummaryDesc: 'Simpan ringkasan arsip perjalanan yang nyaman dibaca',
     
     // Tentang
     aboutSection: 'Tentang Tripory',
-    aboutSubtitle: 'Versi {version} (Build MVP EAS)',
-    aboutText: 'Tripory adalah pendamping perjalanan mobile lokal-pertama untuk Android dan iOS. Didesain untuk memudahkan persiapan, navigasi roadmap, dan kenangan foto Anda.',
+    aboutSubtitle: 'Versi {version} (EAS Local-First MVP)',
+    aboutText: 'Tripory adalah pendamping perjalanan mobile lokal-pertama untuk Android dan iOS. Didesain untuk mendampingi traveler bergerak dari persiapan hingga kenangan berharga.',
     
-    // Dialogs
-    backupAlertTitle: 'Cadangkan Data Offline',
-    backupAlertDesc: 'Seluruh data perjalanan, rute destinasi, dan foto momen Anda tersimpan di basis data lokal perangkat SQLite (tripory.db). Tidak ada data yang dikirim ke cloud demi privasi maksimal Anda.',
-    exportAlertTitle: 'Ekspor Ringkasan Trip',
-    exportAlertDesc: 'Fitur ekspor catatan perjalanan lokal siap diarsipkan ke format dokumen lokal perangkat Anda.',
-    ok: 'OK',
-    understood: 'Mengerti',
+    // Dialog
+    backupAlertTitle: 'Cadangan Offline Lokal',
+    backupAlertDesc: 'Seluruh data perjalanan, rute destinasi, dan foto kenangan tersimpan langsung di database SQLite perangkat Anda (tripory.db). Tidak melibatkan server eksternal.',
+    exportAlertTitle: 'Ekspor Catatan Perjalanan',
+    exportAlertDesc: 'Fitur ekspor catatan perjalanan lokal siap disimpan ke folder dokumen perangkat Anda.',
+    ok: 'Oke',
+    understood: 'Paham',
+  },
+
+  // Layar Tab Perjalanan
+  tripsList: {
+    filterAll: 'Semua',
+    filterActive: 'Aktif',
+    filterPreparing: 'Persiapan',
+    filterDone: 'Selesai',
+    emptyTitle: 'Tidak ada perjalanan ditemukan',
+    emptyDesc: 'Tekan tombol Buat Trip di navigasi bawah untuk memulai perjalanan baru.',
+    createBtn: 'Buat Perjalanan Baru',
+    openWorkspace: 'Buka Roadmap & Workspace',
+    missingWarning: 'Ada barang belum ditemukan saat cek balik',
+    statusOngoing: 'Berlangsung',
+    statusDone: 'Selesai',
+    statusReady: 'Siap',
+    statusPlanning: 'Persiapan',
+  },
+
+  // Layar Tab Inventaris
+  inventory: {
+    itemCount: '{count} Barang Terdaftar',
+    itemCountOne: '1 Barang Terdaftar',
+    addItemBtn: '+ Tambah Barang',
+    quickBundlesLabel: 'Paket Kilat (1-Tap):',
+    allCategory: 'Semua',
+    emptyTitle: 'Belum ada barang di inventaris',
+    emptyDesc: 'Pilih salah satu Paket Kilat di atas atau buat barang sendiri untuk memulai.',
+    emptyAction: 'Tambah Barang Manual',
+    qtyLabel: 'Jumlah:',
+    modalTitle: 'Tambah ke Inventaris',
+    nameLabel: 'Nama Barang *',
+    namePlaceholder: 'Contoh: Jaket Parasut, Charger GaN 65W',
+    categoryLabel: 'Kategori',
+    qtyInputLabel: 'Jumlah Bawaan Standar',
+    notesLabel: 'Catatan Khusus (Opsional)',
+    notesPlaceholder: 'Contoh: Saku dalam, warna hitam',
+    cancelBtn: 'Batal',
+    saveBtn: 'Simpan Barang',
+    alertNameRequired: 'Nama barang tidak boleh kosong.',
+    alertSaveError: 'Tidak dapat menyimpan barang baru.',
+    alertBundleAdded: '{title} ({count} item) berhasil ditambahkan.',
+    alertBundleError: 'Tidak dapat menambahkan paket barang.',
+  },
+
+  // Layar Buat Perjalanan Baru
+  newTrip: {
+    screenTitle: 'Buat Perjalanan',
+    headerTitle: 'Rencanakan Perjalanan Anda',
+    headerDesc: 'Pilih template kilat atau sesuaikan rincian jadwal perjalanan Anda.',
+    step1Title: '1. Pilih Template Kilat (Rekomendasi)',
+    step2Title: '2. Sesuaikan Informasi Perjalanan',
+    nameLabel: 'Nama Perjalanan *',
+    namePlaceholder: 'Contoh: Liburan Seru Akhir Pekan',
+    destLabel: 'Destinasi Utama *',
+    destPlaceholder: 'Contoh: Puncak, Bogor',
+    dateLabel: 'Waktu Keberangkatan',
+    durationLabel: 'Durasi Perjalanan',
+    today: 'Hari Ini',
+    tomorrow: 'Besok',
+    nextWeekend: 'Akhir Pekan',
+    duration1D: '1 Hari',
+    to: 'sampai',
+    starterPackLabel: 'Sertakan Roadmap & Checklist Starter',
+    starterPackDesc: 'Otomatis mengisi 3 titik destinasi dan barang esensial agar Anda tidak perlu mengetik dari nol.',
+    submitBtn: '🚀 Buat & Buka Roadmap Perjalanan',
+    alertRequired: 'Nama perjalanan dan destinasi utama wajib diisi.',
+    alertCreateError: 'Gagal Membuat Trip',
   },
 
   // Detail Perjalanan & Workspace
@@ -130,7 +213,7 @@ export const id: TranslationDictionary = {
     stagePrefix: 'Tahap {current} dari {total}',
     activeStagePrefix: 'Tahap Aktif: {stage}',
     
-    // Co-Pilot Guide
+    // Panduan Co-Pilot
     copilotHeading: 'PANDUAN LANGKAH BERIKUTNYA',
     copilotPack: 'Kemas {count} barang sebelum berangkat',
     copilotReady: 'Persiapan lengkap! Siap memulai perjalanan?',
@@ -142,7 +225,7 @@ export const id: TranslationDictionary = {
     addMomentPhotoBtn: '📸 Tambah Foto Momen',
     finishTripBtn: '📦 Selesai & Cek Kepulangan',
     
-    // Momen
+    // Momen & Kenangan
     memoriesHeading: 'Kenangan Perjalanan',
     memoriesSubtitle: 'Foto & catatan tersimpan offline secara lokal di perangkat Anda.',
     addMemoryTitle: 'Abadikan Foto & Catatan Momen',
@@ -156,6 +239,7 @@ export const id: TranslationDictionary = {
     locationTagPlaceholder: 'Nama tempat / daerah...',
     gpsBtn: 'GPS',
     saveMomentBtn: '💾 Simpan Kenangan Lokal',
+    savingMomentBtn: 'Menyimpan...',
     galleryTitle: 'Galeri Kenangan ({count})',
     noMemoriesYet: 'Belum ada kenangan tersimpan',
     noMemoriesDesc: 'Gunakan tombol kamera atau galeri di atas untuk mulai mengabadikan momen perjalanan Anda secara offline.',
@@ -164,38 +248,100 @@ export const id: TranslationDictionary = {
     cancel: 'Batal',
     delete: 'Hapus',
     
-    // Kemas / Packing
+    // Packing & Kesiapan
     readinessTitle: 'Kesiapan Barang Bawaan',
     readinessSubtitle: '{packed} dari {total} Barang Siap',
     unpackedNotice: '{count} barang penting belum disiapkan',
-    allPackedNotice: 'Semua barang sudah siap di koper!',
+    allPackedNotice: 'Semua barang sudah siap di koper Anda!',
     packingProgress: 'Progres Packing Koper',
     blockersTitle: 'Blocker Kritis ({count} barang wajib belum siap)',
     quickBundlesTitle: 'Tambah Paket Barang Cepat (1-Tap):',
     filterAll: 'Semua ({count})',
     filterUnpacked: 'Perlu Disiapkan ({count})',
     filterPacked: 'Sudah Dikemas ({count})',
+    emptyItemsDesc: 'Belum ada barang di filter ini. Pilih paket cepat di atas atau tambahkan barang di bawah.',
     manualAddTitle: 'Tambah Barang Manual',
-    manualAddPlaceholder: 'Ketik nama barang lalu tekan tombol di bawah...',
+    manualAddPlaceholder: 'Ketik nama barang...',
     addChecklistBtn: '+ Tambahkan ke Checklist',
-    
-    // Destinasi
+
+    // Prioritas
+    priorityMustHave: 'Wajib',
+    priorityConditional: 'Kondisional',
+    priorityOptional: 'Opsional',
+
+    // Badge Status
+    badgeArchived: 'Selesai (Arsip)',
+    badgeOngoing: 'Sedang Berlangsung',
+    badgeReady: 'Siap Berangkat',
+    badgePreparing: 'Persiapan',
+    badgeDraft: 'Rencana',
+
+    // Roadmap Destinasi
     destProgressTitle: 'Progres Kunjungan Destinasi',
     destProgressSubtitle: '{visited} dari {total} Titik Selesai',
     visitedPercent: '{percent}% Tercapai',
     markVisitedBtn: 'Tandai Dikunjungi',
-    visitedBtn: 'Dikunjungi ✓',
+    visitedBtn: 'Selesai Dikunjungi',
     activeStopBadge: 'Titik Aktif',
     dayPrefix: 'HARI {day}',
-    addDestinationBtn: '+ Tambah Titik Kunjungan',
+    emptyRoadmapTitle: 'Roadmap Destinasi Masih Kosong',
+    emptyRoadmapDesc: 'Tambahkan titik persinggahan untuk melihat jalur timeline dan progres perjalanan Anda.',
+    addFirstStopBtn: 'Tambah Titik Pertama',
+    addStopHeading: 'Tambah Titik Singgah Baru',
+    quickPickLabel: 'Pilih Cepat:',
+    stopNameLabel: 'Nama Tempat / Titik Singgah *',
+    stopNamePlaceholder: 'Contoh: Kawah Putih / Restoran Pagi',
+    stopActivityLabel: 'Rencana Aktivitas',
+    stopActivityPlaceholder: 'Contoh: Sarapan, Foto bersama, Trekking',
+    stopTimeLabel: 'Estimasi Jam',
+    saveStopBtn: '+ Simpan ke Roadmap',
+    addStopTriggerBtn: '+ Tambah Titik Singgah ke Roadmap',
+    statusVisited: 'Tercapai',
+    statusPlanned: 'Rencana',
+
+    // Penutupan Perjalanan (Trip Closure)
+    closeSectionTitle: 'Selesai & Tutup Perjalanan',
+    closeSectionDesc: 'Lakukan return check dan arsipkan perjalanan ini. Jika ada barang belum diverifikasi, sistem akan menyimpannya sebagai catatan barang hilang tanpa mengunci penutupan trip.',
+    closeSectionBtn: 'Tutup & Arsipkan Perjalanan Ini',
+    closeModalTitle: 'Tutup & Selesaikan Perjalanan?',
+    closeModalDesc: 'Menutup trip akan memindahkan perjalanan ini ke arsip kenangan. Jika ada barang belum diverifikasi kembali, sistem tetap menyimpannya dengan aman tanpa mengunci penutupan trip.',
+    closeModalAction: 'Tutup & Simpan Kenangan',
+    closeModalSuccessAllTitle: 'Selamat!',
+    closeModalSuccessAllMsg: 'Semua barang berhasil diverifikasi lengkap. Perjalanan Anda tersimpan manis di arsip Tripory.',
+    closeModalSuccessMissingTitle: 'Perjalanan Selesai & Diarsipkan',
+    closeModalSuccessMissingMsg: 'Trip berhasil ditutup. Catatan: terdapat {count} barang yang belum diverifikasi kembali dan tetap dicatat pada arsip trip.',
+
+    // Pesan Peringatan & Dialog
+    alertLoadError: 'Gagal memuat data perjalanan.',
+    alertUpdateStatusError: 'Tidak dapat memperbarui status perjalanan.',
+    alertBundleAdded: '{title} ({count} barang) berhasil ditambahkan ke checklist.',
+    alertDestRequired: 'Nama destinasi wajib diisi.',
+    alertDestAddError: 'Tidak dapat menambahkan destinasi.',
+    alertItemAddError: 'Tidak dapat menambahkan barang.',
+    alertItemUpdateError: 'Tidak dapat memperbarui status barang.',
+    alertAllPackedSuccess: 'Semua barang telah ditandai sudah dikemas!',
+    alertCameraError: 'Tidak dapat mengambil foto menggunakan kamera.',
+    alertGalleryError: 'Tidak dapat memilih foto dari galeri.',
+    alertMomentRequired: 'Silakan ambil/pilih foto atau tuliskan cerita momen Anda.',
+    alertMomentSaved: 'Kenangan perjalanan berhasil disimpan secara offline di perangkat.',
+    alertMomentSaveError: 'Tidak dapat menyimpan kenangan momen.',
+    alertMomentDeleteError: 'Tidak dapat menghapus momen.',
+    alertTripCloseError: 'Tidak dapat menutup perjalanan.',
+    loadingTrip: 'Memuat perjalanan...',
+    tripNotFound: 'Perjalanan tidak ditemukan.',
   },
 
-  // Siklus
+  // Tahapan Siklus
   stages: {
     plan: 'Rencana',
+    planDesc: 'Atur jadwal & destinasi',
     pack: 'Kemas',
+    packDesc: 'Siapkan barang & blocker',
     explore: 'Jelajah',
+    exploreDesc: 'Nikmati perjalanan aktif',
     return: 'Cek Balik',
+    returnDesc: 'Rekonsiliasi kepulangan',
     completed: 'Selesai',
+    completedDesc: 'Arsip & kenangan tersimpan',
   },
 };

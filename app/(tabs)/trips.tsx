@@ -30,10 +30,10 @@ export default function TripsScreen() {
   });
 
   const filterTabs = [
-    { key: 'all', label: language === 'en' ? 'All' : 'Semua' },
-    { key: 'ongoing', label: language === 'en' ? 'Active' : 'Aktif' },
-    { key: 'preparing', label: language === 'en' ? 'Preparing' : 'Persiapan' },
-    { key: 'completed', label: language === 'en' ? 'Done' : 'Selesai' },
+    { key: 'all', label: t.tripsList.filterAll },
+    { key: 'ongoing', label: t.tripsList.filterActive },
+    { key: 'preparing', label: t.tripsList.filterPreparing },
+    { key: 'completed', label: t.tripsList.filterDone },
   ] as const;
 
   const renderTripCard = ({ item }: { item: TripRecord }) => {
@@ -42,10 +42,10 @@ export default function TripsScreen() {
     const isReady = item.status === 'ready';
 
     const getStatusLabel = () => {
-      if (isOngoing) return language === 'en' ? 'On the Road' : 'Berlangsung';
-      if (isCompleted) return language === 'en' ? 'Done' : 'Selesai';
-      if (isReady) return language === 'en' ? 'Ready' : 'Siap';
-      return language === 'en' ? 'Planning' : 'Persiapan';
+      if (isOngoing) return t.tripsList.statusOngoing;
+      if (isCompleted) return t.tripsList.statusDone;
+      if (isReady) return t.tripsList.statusReady;
+      return t.tripsList.statusPlanning;
     };
 
     return (
@@ -78,14 +78,14 @@ export default function TripsScreen() {
             <View style={[styles.metaChip, { backgroundColor: isDarkMode ? 'rgba(56, 189, 248, 0.1)' : '#F1F5F9' }]}>
               <Ionicons name="calendar-outline" size={12} color={themeColors.text.muted} />
               <Typography variant="caption" color={themeColors.text.secondary} style={styles.metaText}>
-                {formatDateRange(item.startDate, item.endDate)}
+                {formatDateRange(item.startDate, item.endDate, language)}
               </Typography>
             </View>
 
             <View style={[styles.metaChip, { backgroundColor: isDarkMode ? 'rgba(56, 189, 248, 0.1)' : '#F1F5F9' }]}>
               <Ionicons name="time-outline" size={12} color={themeColors.text.muted} />
               <Typography variant="caption" color={themeColors.text.secondary} style={styles.metaText}>
-                {formatTripDurationLabel(item.startDate, item.endDate)}
+                {formatTripDurationLabel(item.startDate, item.endDate, language)}
               </Typography>
             </View>
           </View>
@@ -100,7 +100,7 @@ export default function TripsScreen() {
             <View style={styles.missingBadge}>
               <Ionicons name="alert-circle" size={14} color="#EF4444" />
               <Typography variant="caption" color="#EF4444" style={styles.missingText}>
-                {language === 'en' ? 'Items missing from return check' : 'Ada barang belum ditemukan saat cek balik'}
+                {t.tripsList.missingWarning}
               </Typography>
             </View>
           ) : null}
@@ -108,7 +108,7 @@ export default function TripsScreen() {
           {/* Footer Navigation Link */}
           <View style={[styles.cardFooter, { borderTopColor: themeColors.border.muted }]}>
             <Typography variant="caption" color={themeColors.brand.blue} style={styles.viewRoadmapLink}>
-              {language === 'en' ? 'Open Roadmap & Workspace' : 'Buka Roadmap & Workspace'}
+              {t.tripsList.openWorkspace}
             </Typography>
             <Ionicons name="chevron-forward" size={14} color={themeColors.brand.blue} />
           </View>
@@ -158,9 +158,9 @@ export default function TripsScreen() {
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <EmptyState
-            title={language === 'en' ? 'No journeys found' : 'Tidak ada perjalanan ditemukan'}
-            description={language === 'en' ? 'Tap the + button in the bottom navigation to start your next trip.' : 'Tekan tombol + di navigasi bawah untuk memulai perjalanan baru.'}
-            actionLabel={language === 'en' ? 'Create New Trip' : 'Buat Perjalanan Baru'}
+            title={t.tripsList.emptyTitle}
+            description={t.tripsList.emptyDesc}
+            actionLabel={t.tripsList.createBtn}
             onAction={() => router.push('/trip/new')}
           />
         }

@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, radius, spacing } from '@/core/theme';
 import { Typography } from '../ui/Typography';
 import { ProgressBar } from '../ui/ProgressBar';
+import { useI18n } from '@/core/i18n';
 
 export type TripStage = 'draft' | 'preparing' | 'ready' | 'ongoing' | 'completed';
 
@@ -22,50 +23,52 @@ interface StepMeta {
   description: string;
 }
 
-const LIFECYCLE_STEPS: StepMeta[] = [
-  {
-    key: 'plan',
-    label: 'Rencana',
-    shortLabel: 'Plan',
-    icon: 'calendar-outline',
-    description: 'Atur jadwal & destinasi',
-  },
-  {
-    key: 'pack',
-    label: 'Kemas',
-    shortLabel: 'Pack',
-    icon: 'bag-handle-outline',
-    description: 'Siapkan barang & blocker',
-  },
-  {
-    key: 'explore',
-    label: 'Jelajah',
-    shortLabel: 'Explore',
-    icon: 'navigate-outline',
-    description: 'Nikmati perjalanan aktif',
-  },
-  {
-    key: 'return',
-    label: 'Cek Balik',
-    shortLabel: 'Return',
-    icon: 'repeat-outline',
-    description: 'Rekonsiliasi kepulangan',
-  },
-  {
-    key: 'closed',
-    label: 'Selesai',
-    shortLabel: 'Memory',
-    icon: 'checkmark-done-circle-outline',
-    description: 'Arsip & kenangan tersimpan',
-  },
-];
-
 export const TripLifecycleRoadmap: React.FC<TripLifecycleRoadmapProps> = ({
   status,
   style,
   compact = false,
   theme = 'light',
 }) => {
+  const { t, language } = useI18n();
+
+  const lifecycleSteps: StepMeta[] = [
+    {
+      key: 'plan',
+      label: t.stages.plan,
+      shortLabel: t.stages.plan,
+      icon: 'calendar-outline',
+      description: t.stages.planDesc,
+    },
+    {
+      key: 'pack',
+      label: t.stages.pack,
+      shortLabel: t.stages.pack,
+      icon: 'bag-handle-outline',
+      description: t.stages.packDesc,
+    },
+    {
+      key: 'explore',
+      label: t.stages.explore,
+      shortLabel: t.stages.explore,
+      icon: 'navigate-outline',
+      description: t.stages.exploreDesc,
+    },
+    {
+      key: 'return',
+      label: t.stages.return,
+      shortLabel: t.stages.return,
+      icon: 'repeat-outline',
+      description: t.stages.returnDesc,
+    },
+    {
+      key: 'closed',
+      label: t.stages.completed,
+      shortLabel: t.stages.completed,
+      icon: 'checkmark-done-circle-outline',
+      description: t.stages.completedDesc,
+    },
+  ];
+
   // Tentukan step index aktif berdasarkan status trip
   const getActiveStepIndex = (): number => {
     switch (status) {
@@ -85,7 +88,7 @@ export const TripLifecycleRoadmap: React.FC<TripLifecycleRoadmapProps> = ({
   };
 
   const activeIndex = getActiveStepIndex();
-  const progressPercent = Math.round(((activeIndex + 1) / LIFECYCLE_STEPS.length) * 100);
+  const progressPercent = Math.round(((activeIndex + 1) / lifecycleSteps.length) * 100);
 
   const isDark = theme === 'dark';
   const textColor = isDark ? '#FFFFFF' : colors.brand.navy;
@@ -104,20 +107,22 @@ export const TripLifecycleRoadmap: React.FC<TripLifecycleRoadmapProps> = ({
             style={styles.headerIcon}
           />
           <Typography variant="label" color={textColor} style={styles.headerTitle}>
-            Roadmap Perjalanan
+            {t.trip.roadmapProgress}
           </Typography>
         </View>
 
         <View style={[styles.progressPill, isDark && styles.progressPillDark]}>
           <Typography variant="label" color={colors.brand.coral}>
-            Tahap {activeIndex + 1} dari 5 • {progressPercent}%
+            {language === 'en'
+              ? `Stage ${activeIndex + 1} of 5 • ${progressPercent}%`
+              : `Tahap ${activeIndex + 1} dari 5 • ${progressPercent}%`}
           </Typography>
         </View>
       </View>
 
       {/* Stepper Roadmap Line & Nodes */}
       <View style={styles.stepperContainer}>
-        {LIFECYCLE_STEPS.map((step, idx) => {
+        {lifecycleSteps.map((step, idx) => {
           const isCompleted = idx < activeIndex || status === 'completed';
           const isCurrent = idx === activeIndex && status !== 'completed';
           const isUpcoming = idx > activeIndex;
@@ -173,7 +178,7 @@ export const TripLifecycleRoadmap: React.FC<TripLifecycleRoadmapProps> = ({
               </View>
 
               {/* Connecting line between steps */}
-              {idx < LIFECYCLE_STEPS.length - 1 ? (
+              {idx < lifecycleSteps.length - 1 ? (
                 <View
                   style={[
                     styles.connectingLine,
@@ -195,11 +200,13 @@ export const TripLifecycleRoadmap: React.FC<TripLifecycleRoadmapProps> = ({
           <View style={styles.activeStageRow}>
             <View style={styles.pulseDot} />
             <Typography variant="label" color={textColor}>
-              Tahap Aktif: {LIFECYCLE_STEPS[activeIndex].label}
+              {language === 'en'
+                ? `Active Stage: ${lifecycleSteps[activeIndex].label}`
+                : `Tahap Aktif: ${lifecycleSteps[activeIndex].label}`}
             </Typography>
           </View>
           <Typography variant="caption" color={subtextColor}>
-            {LIFECYCLE_STEPS[activeIndex].description}
+            {lifecycleSteps[activeIndex].description}
           </Typography>
         </View>
       ) : null}

@@ -7,6 +7,7 @@ import { useDatabase } from '@/hooks/useDatabase';
 import { spacing, radius, useThemeColors } from '@/core/theme';
 import { Typography, Button } from '@/components/ui';
 import { useUIStore } from '@/stores/ui-store';
+import { useI18n } from '@/core/i18n';
 
 // Prevent the native splash screen from auto-hiding before ready
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -15,6 +16,7 @@ export default function RootLayout() {
   const { isDatabaseReady, schemaVersion, error, retry } = useDatabase();
   const themeColors = useThemeColors();
   const isDarkMode = useUIStore((s) => s.isDarkMode);
+  const { t } = useI18n();
 
   // In-app branded splash screen state
   const [isSplashVisible, setIsSplashVisible] = useState(true);
@@ -55,7 +57,7 @@ export default function RootLayout() {
       <View style={[styles.centerContainer, { backgroundColor: themeColors.surface.page }]}>
         <StatusBar style={isDarkMode ? 'light' : 'dark'} />
         <Typography variant="h3" color={themeColors.status.error} style={styles.errorTitle}>
-          Terjadi Gangguan Database
+          {t.splash.dbErrorTitle}
         </Typography>
         <Typography variant="body" color={themeColors.text.secondary} style={styles.errorMessage}>
           {error}
@@ -63,7 +65,7 @@ export default function RootLayout() {
         {retry && (
           <Button
             variant="primary"
-            label="Coba Muat Ulang"
+            label={t.splash.retryBtn}
             onPress={retry}
             style={styles.retryButton}
           />
@@ -95,14 +97,14 @@ export default function RootLayout() {
         <Stack.Screen
           name="trip/[id]"
           options={{
-            title: 'Detail Perjalanan',
-            headerBackTitle: 'Kembali',
+            title: t.trip.details,
+            headerBackTitle: t.trip.back,
           }}
         />
         <Stack.Screen
           name="trip/new"
           options={{
-            title: 'Buat Perjalanan',
+            title: t.newTrip.screenTitle,
             presentation: 'modal',
           }}
         />
@@ -135,7 +137,7 @@ export default function RootLayout() {
               color={themeColors.text.secondary}
               style={styles.splashTagline}
             >
-              Plan • Explore • Capture • Remember
+              {t.splash.tagline}
             </Typography>
 
             <View style={styles.loadingWrap}>
@@ -145,7 +147,7 @@ export default function RootLayout() {
                 style={styles.spinner}
               />
               <Typography variant="caption" color={themeColors.text.muted}>
-                Menyiapkan perjalanan Anda...
+                {t.splash.loading}
               </Typography>
             </View>
           </View>

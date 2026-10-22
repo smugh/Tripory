@@ -18,7 +18,7 @@ export const packingService = {
     return nextState;
   },
 
-  computeReadiness(items: TripItemEntity[]): PackingSummary {
-    return computeReadiness(items);
+  computeReadiness(items: TripItemEntity[], language: 'en' | 'id' = 'en'): PackingSummary {
+    return computeReadiness(items, language);
   },
 };

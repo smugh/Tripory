@@ -5,14 +5,16 @@ import { spacing, radius, useThemeColors } from '@/core/theme';
 import { Typography, Card, Badge, Button, Input, EmptyState, ScreenContainer } from '@/components/ui';
 import { itemRepository } from '@/db/repositories/item.repository';
 import { ItemRecord } from '@/db/schema/items';
-import { ITEM_CATEGORIES, ItemCategory, QUICK_PACK_BUNDLES, QuickBundle } from '@/core/constants';
+import { ITEM_CATEGORIES, ItemCategory, getQuickPackBundles, QuickBundle } from '@/core/constants';
 import { useI18n } from '@/core/i18n';
 import { useUIStore } from '@/stores/ui-store';
 
 export default function ItemsScreen() {
   const themeColors = useThemeColors();
   const isDarkMode = useUIStore((s) => s.isDarkMode);
-  const { t, language } = useI18n();
+  const { t, format, language } = useI18n();
+
+  const quickBundles = getQuickPackBundles(language);
 
   const [itemsList, setItemsList] = useState<ItemRecord[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
@@ -37,7 +39,7 @@ export default function ItemsScreen() {
 
   const handleSaveItem = async () => {
     if (!newItemName.trim()) {
-      Alert.alert(language === 'en' ? 'Required' : 'Perhatian', language === 'en' ? 'Item name cannot be empty.' : 'Nama barang tidak boleh kosong.');
+      Alert.alert(language === 'en' ? 'Required' : 'Perhatian', t.inventory.alertNameRequired);
       return;
     }
 
@@ -55,7 +57,7 @@ export default function ItemsScreen() {
       setIsModalOpen(false);
       loadItems();
     } catch {
-      Alert.alert(language === 'en' ? 'Error' : 'Gagal', language === 'en' ? 'Unable to save new item.' : 'Tidak dapat menyimpan barang baru.');
+      Alert.alert(language === 'en' ? 'Error' : 'Gagal', t.inventory.alertSaveError);
     }
   };
 
@@ -63,10 +65,10 @@ export default function ItemsScreen() {
     try {
       for (const item of bundle.items) {
         let cat: ItemCategory = 'Others';
-        if (bundle.category === 'Pakaian') cat = 'Clothing';
-        else if (bundle.category === 'Elektronik') cat = 'Electronics';
-        else if (bundle.category === 'Kesehatan') cat = 'Medicine';
-        else if (bundle.category === 'Paling Populer') cat = 'Documents';
+        if (bundle.category === 'Pakaian' || bundle.category === 'Clothing') cat = 'Clothing';
+        else if (bundle.category === 'Elektronik' || bundle.category === 'Electronics') cat = 'Electronics';
+        else if (bundle.category === 'Kesehatan' || bundle.category === 'Medicine') cat = 'Medicine';
+        else if (bundle.category === 'Paling Populer' || bundle.category === 'Documents') cat = 'Documents';
 
         await itemRepository.create({
           name: item.name,
@@ -78,12 +80,10 @@ export default function ItemsScreen() {
       loadItems();
       Alert.alert(
         language === 'en' ? 'Success' : 'Sukses',
-        language === 'en'
-          ? `${bundle.title} (${bundle.items.length} items) added to inventory.`
-          : `${bundle.title} (${bundle.items.length} item) berhasil ditambahkan.`
+        format(t.inventory.alertBundleAdded, { title: bundle.title, count: bundle.items.length })
       );
     } catch {
-      Alert.alert(language === 'en' ? 'Error' : 'Gagal', language === 'en' ? 'Could not add bundle items.' : 'Tidak dapat menambahkan paket barang.');
+      Alert.alert(language === 'en' ? 'Error' : 'Gagal', t.inventory.alertBundleError);
     }
   };
 
@@ -117,12 +117,14 @@ export default function ItemsScreen() {
       <View style={styles.topBar}>
         <View style={styles.topBarLeft}>
           <Typography variant="body" color={themeColors.text.secondary} style={{ fontSize: 13, fontWeight: '600' }}>
-            {filteredItems.length} {language === 'en' ? (filteredItems.length === 1 ? 'Item' : 'Items') : 'Barang Terdaftar'}
+            {filteredItems.length === 1
+              ? t.inventory.itemCountOne
+              : format(t.inventory.itemCount, { count: filteredItems.length })}
           </Typography>
         </View>
 
         <Button
-          label={language === 'en' ? '+ Add Item' : '+ Tambah'}
+          label={t.inventory.addItemBtn}
           size="sm"
           variant="accent"
           onPress={() => setIsModalOpen(true)}
@@ -132,10 +134,10 @@ export default function ItemsScreen() {
       {/* QUICK BUNDLE ROW */}
       <View style={styles.bundleSection}>
         <Typography variant="caption" color={themeColors.text.primary} style={styles.bundleLabel}>
-          {language === 'en' ? 'Quick Bundles (1-Tap):' : 'Paket Kilat (1-Tap):'}
+          {t.inventory.quickBundlesLabel}
         </Typography>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.bundleScroll}>
-          {QUICK_PACK_BUNDLES.map((b) => (
+          {quickBundles.map((b) => (
             <Pressable
               key={b.title}
               style={[
@@ -187,7 +189,7 @@ export default function ItemsScreen() {
                   color={isSelected ? '#FFFFFF' : themeColors.text.secondary}
                   style={styles.categoryPillText}
                 >
-                  {cat === 'All' ? (language === 'en' ? 'All' : 'Semua') : cat}
+                  {cat === 'All' ? t.inventory.allCategory : cat}
                 </Typography>
               </Pressable>
             );
@@ -227,7 +229,7 @@ export default function ItemsScreen() {
                   {item.name}
                 </Typography>
                 <Typography variant="caption" color={themeColors.text.secondary}>
-                  {language === 'en' ? 'Qty:' : 'Jumlah:'} {item.quantity} {item.notes ? `• ${item.notes}` : ''}
+                  {t.inventory.qtyLabel} {item.quantity} {item.notes ? `• ${item.notes}` : ''}
                 </Typography>
               </View>
 
@@ -239,9 +241,9 @@ export default function ItemsScreen() {
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <EmptyState
-            title={language === 'en' ? 'No items in inventory' : 'Belum ada barang di inventaris'}
-            description={language === 'en' ? 'Pick a Quick Bundle above or create items manually.' : 'Pilih salah satu Paket Kilat di atas atau buat barang sendiri untuk memulai.'}
-            actionLabel={language === 'en' ? 'Add Item Manually' : 'Tambah Barang Manual'}
+            title={t.inventory.emptyTitle}
+            description={t.inventory.emptyDesc}
+            actionLabel={t.inventory.emptyAction}
             onAction={() => setIsModalOpen(true)}
           />
         }
@@ -263,7 +265,7 @@ export default function ItemsScreen() {
           >
             <View style={styles.modalHeader}>
               <Typography variant="h2" color={themeColors.brand.navy}>
-                {language === 'en' ? 'Add to Inventory' : 'Tambah ke Inventaris'}
+                {t.inventory.modalTitle}
               </Typography>
               <Pressable onPress={() => setIsModalOpen(false)}>
                 <Ionicons name="close-circle-outline" size={24} color={themeColors.text.muted} />
@@ -271,14 +273,14 @@ export default function ItemsScreen() {
             </View>
 
             <Input
-              label={language === 'en' ? 'Item Name *' : 'Nama Barang *'}
-              placeholder={language === 'en' ? 'e.g. Windbreaker, 65W GaN Charger' : 'Contoh: Jaket Parasut, Charger GaN 65W'}
+              label={t.inventory.nameLabel}
+              placeholder={t.inventory.namePlaceholder}
               value={newItemName}
               onChangeText={setNewItemName}
             />
 
             <Typography variant="label" color={themeColors.text.primary} style={styles.inputLabel}>
-              {language === 'en' ? 'Category' : 'Kategori'}
+              {t.inventory.categoryLabel}
             </Typography>
             <View style={styles.categorySelectGrid}>
               {ITEM_CATEGORIES.map((cat) => (
@@ -308,7 +310,7 @@ export default function ItemsScreen() {
             </View>
 
             <Input
-              label={language === 'en' ? 'Standard Quantity' : 'Jumlah Bawaan Standar'}
+              label={t.inventory.qtyInputLabel}
               placeholder="1"
               value={newItemQty}
               onChangeText={setNewItemQty}
@@ -316,21 +318,21 @@ export default function ItemsScreen() {
             />
 
             <Input
-              label={language === 'en' ? 'Notes (Optional)' : 'Catatan Khusus (Opsional)'}
-              placeholder={language === 'en' ? 'e.g. Inside pocket, black color' : 'Contoh: Saku dalam, warna hitam'}
+              label={t.inventory.notesLabel}
+              placeholder={t.inventory.notesPlaceholder}
               value={newItemNotes}
               onChangeText={setNewItemNotes}
             />
 
             <View style={styles.modalButtons}>
               <Button
-                label={language === 'en' ? 'Cancel' : 'Batal'}
+                label={t.inventory.cancelBtn}
                 variant="ghost"
                 size="md"
                 onPress={() => setIsModalOpen(false)}
               />
               <Button
-                label={language === 'en' ? 'Save Item' : 'Simpan Barang'}
+                label={t.inventory.saveBtn}
                 variant="accent"
                 size="md"
                 onPress={handleSaveItem}

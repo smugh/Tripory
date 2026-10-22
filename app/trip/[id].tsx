@@ -18,7 +18,7 @@ import { DestinationRecord } from '@/db/schema/destinations';
 import { TripItemRecord } from '@/db/schema/trip-items';
 import { MomentRecord } from '@/db/schema/moments';
 import { formatDateRange, formatTripDurationLabel } from '@/core/utils';
-import { QUICK_PACK_BUNDLES, QuickBundle } from '@/core/constants';
+import { getQuickPackBundles, QuickBundle } from '@/core/constants';
 import { useUIStore } from '@/stores/ui-store';
 import { useI18n } from '@/core/i18n';
 
@@ -30,7 +30,7 @@ export default function TripDetailScreen() {
   const router = useRouter();
   const themeColors = useThemeColors();
   const isDarkMode = useUIStore((s) => s.isDarkMode);
-  const { language } = useI18n();
+  const { t, format, language } = useI18n();
 
   const [trip, setTrip] = useState<TripRecord | null>(null);
   const [destinations, setDestinations] = useState<DestinationRecord[]>([]);
@@ -73,11 +73,11 @@ export default function TripDetailScreen() {
         setMomentsList(m);
       }
     } catch {
-      Alert.alert('Error', 'Gagal memuat data perjalanan.');
+      Alert.alert('Error', t.trip.alertLoadError);
     } finally {
       setIsLoading(false);
     }
-  }, [id]);
+  }, [id, t.trip.alertLoadError]);
 
   useEffect(() => {
     loadTripData();
@@ -90,7 +90,7 @@ export default function TripDetailScreen() {
       await tripRepository.updateStatus(id, nextStatus);
       loadTripData();
     } catch {
-      Alert.alert('Gagal', 'Tidak dapat memperbarui status perjalanan.');
+      Alert.alert(language === 'en' ? 'Error' : 'Gagal', t.trip.alertUpdateStatusError);
     }
   };
 
@@ -118,15 +118,18 @@ export default function TripDetailScreen() {
         });
       }
       loadTripData();
-      Alert.alert('Sukses', `${bundle.title} (${bundle.items.length} barang) berhasil ditambahkan ke checklist.`);
+      Alert.alert(
+        language === 'en' ? 'Success' : 'Sukses',
+        format(t.trip.alertBundleAdded, { title: bundle.title, count: bundle.items.length })
+      );
     } catch {
-      Alert.alert('Gagal', 'Tidak dapat menambahkan paket barang.');
+      Alert.alert(language === 'en' ? 'Error' : 'Gagal', t.inventory.alertBundleError);
     }
   };
 
   const handleAddDestination = async () => {
     if (!id || !newDestName.trim()) {
-      Alert.alert('Perhatian', 'Nama destinasi wajib diisi.');
+      Alert.alert(language === 'en' ? 'Required' : 'Perhatian', t.trip.alertDestRequired);
       return;
     }
     try {
@@ -146,7 +149,7 @@ export default function TripDetailScreen() {
       setIsAddingDest(false);
       loadTripData();
     } catch {
-      Alert.alert('Gagal', 'Tidak dapat menambahkan destinasi.');
+      Alert.alert(language === 'en' ? 'Error' : 'Gagal', t.trip.alertDestAddError);
     }
   };
 
@@ -157,7 +160,7 @@ export default function TripDetailScreen() {
         tripId: id,
         itemId: null,
         customName: newItemName.trim(),
-        category: 'Perlengkapan',
+        category: 'Gear & Activities',
         plannedDestinationId: destinations[0]?.id ?? null,
         state: 'planned',
         priority: 'must_have',
@@ -167,7 +170,7 @@ export default function TripDetailScreen() {
       setNewItemName('');
       loadTripData();
     } catch {
-      Alert.alert('Gagal', 'Tidak dapat menambahkan barang.');
+      Alert.alert(language === 'en' ? 'Error' : 'Gagal', t.trip.alertItemAddError);
     }
   };
 
@@ -177,7 +180,7 @@ export default function TripDetailScreen() {
       await packingRepository.updateItemState(item.id, nextState);
       loadTripData();
     } catch {
-      Alert.alert('Gagal', 'Tidak dapat memperbarui status barang.');
+      Alert.alert(language === 'en' ? 'Error' : 'Gagal', t.trip.alertItemUpdateError);
     }
   };
 
@@ -190,9 +193,9 @@ export default function TripDetailScreen() {
         }
       }
       loadTripData();
-      Alert.alert('Selesai', 'Semua barang telah ditandai sudah dikemas!');
+      Alert.alert(language === 'en' ? 'Done' : 'Selesai', t.trip.alertAllPackedSuccess);
     } catch {
-      Alert.alert('Gagal', 'Tidak dapat memperbarui barang.');
+      Alert.alert(language === 'en' ? 'Error' : 'Gagal', t.trip.alertItemUpdateError);
     }
   };
 
@@ -206,7 +209,7 @@ export default function TripDetailScreen() {
         }
       }
     } catch {
-      Alert.alert('Gagal', 'Tidak dapat mengambil foto menggunakan kamera.');
+      Alert.alert(language === 'en' ? 'Error' : 'Gagal', t.trip.alertCameraError);
     }
   };
 
@@ -220,7 +223,7 @@ export default function TripDetailScreen() {
         }
       }
     } catch {
-      Alert.alert('Gagal', 'Tidak dapat memilih foto dari galeri.');
+      Alert.alert(language === 'en' ? 'Error' : 'Gagal', t.trip.alertGalleryError);
     }
   };
 
@@ -251,7 +254,7 @@ export default function TripDetailScreen() {
   const handleAddMoment = async () => {
     if (!id) return;
     if (!selectedPhotoUri && !newMomentCaption.trim()) {
-      Alert.alert('Perhatian', 'Silakan ambil/pilih foto atau tuliskan cerita momen Anda.');
+      Alert.alert(language === 'en' ? 'Notice' : 'Perhatian', t.trip.alertMomentRequired);
       return;
     }
     try {
@@ -259,7 +262,7 @@ export default function TripDetailScreen() {
       await momentRepository.create({
         tripId: id,
         destinationId: destinations[0]?.id ?? null,
-        caption: newMomentCaption.trim() || 'Foto Kenangan Perjalanan',
+        caption: newMomentCaption.trim() || (language === 'en' ? 'Trip Memory' : 'Foto Kenangan Perjalanan'),
         photoPath: selectedPhotoUri || 'local://placeholder',
         locationName: momentLocationTag.trim() || trip?.destination || null,
         latitude: momentCoords?.latitude ?? null,
@@ -271,19 +274,19 @@ export default function TripDetailScreen() {
       setMomentLocationTag('');
       setMomentCoords(null);
       loadTripData();
-      Alert.alert('Momen Tersimpan', 'Kenangan perjalanan berhasil disimpan secara offline di perangkat.');
+      Alert.alert(language === 'en' ? 'Moment Saved' : 'Momen Tersimpan', t.trip.alertMomentSaved);
     } catch {
-      Alert.alert('Gagal', 'Tidak dapat menyimpan kenangan momen.');
+      Alert.alert(language === 'en' ? 'Error' : 'Gagal', t.trip.alertMomentSaveError);
     } finally {
       setIsSavingMoment(false);
     }
   };
 
   const handleDeleteMoment = async (momentId: string, photoPath: string) => {
-    Alert.alert('Hapus Momen', 'Apakah Anda yakin ingin menghapus kenangan momen ini?', [
-      { text: 'Batal', style: 'cancel' },
+    Alert.alert(t.trip.deleteMomentConfirmTitle, t.trip.deleteMomentConfirmDesc, [
+      { text: t.trip.cancel, style: 'cancel' },
       {
-        text: 'Hapus',
+        text: t.trip.delete,
         style: 'destructive',
         onPress: async () => {
           try {
@@ -293,7 +296,7 @@ export default function TripDetailScreen() {
             }
             loadTripData();
           } catch {
-            Alert.alert('Gagal', 'Tidak dapat menghapus momen.');
+            Alert.alert(language === 'en' ? 'Error' : 'Gagal', t.trip.alertMomentDeleteError);
           }
         },
       },
@@ -304,12 +307,12 @@ export default function TripDetailScreen() {
     if (!id) return;
 
     Alert.alert(
-      'Tutup & Selesaikan Perjalanan?',
-      'Menutup trip akan memindahkan perjalanan ini ke arsip kenangan. Jika ada barang belum diverifikasi kembali, sistem tetap menyimpannya dengan aman tanpa mengunci penutupan trip.',
+      t.trip.closeModalTitle,
+      t.trip.closeModalDesc,
       [
-        { text: 'Batal', style: 'cancel' },
+        { text: t.trip.cancel, style: 'cancel' },
         {
-          text: 'Tutup & Simpan Kenangan',
+          text: t.trip.closeModalAction,
           style: 'destructive',
           onPress: async () => {
             try {
@@ -317,15 +320,15 @@ export default function TripDetailScreen() {
               const result = await tripClosureService.closeTrip({ tripId: id });
               if (result.hasMissingItems) {
                 Alert.alert(
-                  'Perjalanan Selesai & Diarsipkan',
-                  `Trip berhasil ditutup. Catatan: terdapat ${result.missingItemsCount} barang yang belum diverifikasi kembali dan tetap dicatat pada arsip trip.`
+                  t.trip.closeModalSuccessMissingTitle,
+                  format(t.trip.closeModalSuccessMissingMsg, { count: result.missingItemsCount })
                 );
               } else {
-                Alert.alert('Selamat!', 'Semua barang berhasil diverifikasi lengkap. Perjalanan Anda tersimpan manis di arsip Tripory.');
+                Alert.alert(t.trip.closeModalSuccessAllTitle, t.trip.closeModalSuccessAllMsg);
               }
               loadTripData();
             } catch {
-              Alert.alert('Gagal', 'Tidak dapat menutup perjalanan.');
+              Alert.alert(language === 'en' ? 'Error' : 'Gagal', t.trip.alertTripCloseError);
             } finally {
               setIsClosingTrip(false);
             }
@@ -339,14 +342,14 @@ export default function TripDetailScreen() {
     return (
       <ScreenContainer>
         <Typography variant="body" color={colors.text.secondary}>
-          {isLoading ? 'Memuat perjalanan...' : 'Perjalanan tidak ditemukan.'}
+          {isLoading ? t.trip.loadingTrip : t.trip.tripNotFound}
         </Typography>
       </ScreenContainer>
     );
   }
 
   // Readiness computation
-  const readiness = packingService.computeReadiness(items as any);
+  const readiness = packingService.computeReadiness(items as any, language);
   const readinessPercent = readiness.totalItems > 0
     ? Math.round((readiness.packedCount / readiness.totalItems) * 100)
     : 0;
@@ -358,6 +361,21 @@ export default function TripDetailScreen() {
     return true;
   });
 
+  const quickBundles = getQuickPackBundles(language);
+  const quickDestSuggestions = language === 'en'
+    ? [
+        { name: 'Hotel / Resort', act: 'Check-in & relax' },
+        { name: 'Nature / Beach View', act: 'Explore scenery & photos' },
+        { name: 'Local Specialty Dining', act: 'Lunch & culinary tasting' },
+        { name: 'Souvenir Market', act: 'Gift & local shopping' },
+      ]
+    : [
+        { name: 'Hotel / Penginapan', act: 'Check-in & istirahat' },
+        { name: 'Wisata Alam / Pantai', act: 'Eksplorasi alam & foto' },
+        { name: 'Kuliner Lokal Favorit', act: 'Makan siang & santap santai' },
+        { name: 'Pusat Oleh-Oleh', act: 'Belanja suvenir' },
+      ];
+
   // Smart Co-Pilot recommendation logic
   const isPreparing = trip.status === 'draft' || trip.status === 'preparing';
   const isReady = trip.status === 'ready';
@@ -365,45 +383,43 @@ export default function TripDetailScreen() {
   const isCompleted = trip.status === 'completed';
 
   return (
-    <ScreenContainer>
+    <ScreenContainer edges={['left', 'right']}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Navigation Top Bar */}
-        <View style={styles.topBar}>
-          <Pressable onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={20} color={colors.brand.navy} />
-            <Typography variant="label" color={colors.brand.navy} style={styles.backText}>
-              Kembali
-            </Typography>
-          </Pressable>
-
-          <Badge
-            label={
-              isCompleted
-                ? 'Selesai (Arsip)'
-                : isOngoing
-                ? 'Sedang Berlangsung'
-                : isReady
-                ? 'Siap Berangkat'
-                : 'Persiapan'
-            }
-            variant={
-              isCompleted
-                ? 'neutral'
-                : isOngoing
-                ? 'accent'
-                : isReady
-                ? 'success'
-                : 'warning'
-            }
-            dot
-          />
-        </View>
-
         {/* Hero Header Card */}
         <Card variant="navy" style={styles.heroCard}>
-          <Typography variant="h1" color="#FFFFFF" style={styles.heroTitle}>
-            {trip.name}
-          </Typography>
+          {/* Header Row: Title & Status Badge */}
+          <View style={styles.cardHeaderRow}>
+            <View style={styles.cardTitleWrap}>
+              <Typography variant="h1" color="#FFFFFF" style={styles.heroTitle}>
+                {trip.name}
+              </Typography>
+            </View>
+
+            <Badge
+              label={
+                isCompleted
+                  ? t.trip.badgeArchived
+                  : isOngoing
+                  ? t.trip.badgeOngoing
+                  : isReady
+                  ? t.trip.badgeReady
+                  : isPreparing
+                  ? t.trip.badgePreparing
+                  : t.trip.badgeDraft
+              }
+              variant={
+                isCompleted
+                  ? 'neutral'
+                  : isOngoing
+                  ? 'accent'
+                  : isReady
+                  ? 'success'
+                  : 'warning'
+              }
+              size="sm"
+              dot
+            />
+          </View>
           <View style={styles.destRow}>
             <Ionicons name="location-sharp" size={16} color="#93C5FD" />
             <Typography variant="body" color="#F1F5F9" style={styles.heroDest}>
@@ -415,13 +431,13 @@ export default function TripDetailScreen() {
             <View style={styles.heroChip}>
               <Ionicons name="calendar-outline" size={13} color="#CBD5E1" />
               <Typography variant="caption" color="#CBD5E1" style={styles.chipText}>
-                {formatDateRange(trip.startDate, trip.endDate)}
+                {formatDateRange(trip.startDate, trip.endDate, language)}
               </Typography>
             </View>
             <View style={styles.heroChip}>
               <Ionicons name="time-outline" size={13} color="#CBD5E1" />
               <Typography variant="caption" color="#CBD5E1" style={styles.chipText}>
-                {formatTripDurationLabel(trip.startDate, trip.endDate)}
+                {formatTripDurationLabel(trip.startDate, trip.endDate, language)}
               </Typography>
             </View>
           </View>
@@ -445,16 +461,16 @@ export default function TripDetailScreen() {
               </View>
               <View style={styles.coPilotTitles}>
                 <Typography variant="label" color={colors.brand.coral}>
-                  PANDUAN LANGKAH BERIKUTNYA
+                  {t.trip.copilotHeading}
                 </Typography>
                 <Typography variant="h3" color={colors.brand.navy}>
                   {isPreparing && readinessPercent < 100
-                    ? `Kemas ${readiness.totalItems - readiness.packedCount} barang sebelum berangkat`
+                    ? format(t.trip.copilotPack, { count: readiness.totalItems - readiness.packedCount })
                     : isPreparing || isReady
-                    ? 'Persiapan lengkap! Siap memulai perjalanan?'
+                    ? t.trip.copilotReady
                     : isOngoing
-                    ? 'Perjalanan sedang aktif. Jelajahi roadmap & abadikan momen'
-                    : 'Perjalanan siap ditutup'}
+                    ? t.trip.copilotOngoing
+                    : t.trip.copilotCompleted}
                 </Typography>
               </View>
             </View>
@@ -463,14 +479,14 @@ export default function TripDetailScreen() {
               {isPreparing && readinessPercent < 100 ? (
                 <>
                   <Button
-                    label="Buka Checklist Kemas"
+                    label={t.trip.openChecklistBtn}
                     size="sm"
                     variant="secondary"
                     onPress={() => setActiveTab('packing')}
                   />
                   {items.length > 0 ? (
                     <Button
-                      label="✓ Centang Semua Siap"
+                      label={t.trip.markAllPackedBtn}
                       size="sm"
                       variant="primary"
                       onPress={handlePackAll}
@@ -479,7 +495,7 @@ export default function TripDetailScreen() {
                 </>
               ) : isPreparing || isReady ? (
                 <Button
-                  label="🚀 Mulai Perjalanan (Jelajah Sekarang)"
+                  label={t.trip.startTripBtn}
                   size="md"
                   variant="accent"
                   onPress={() => handleAdvanceStatus('ongoing')}
@@ -487,13 +503,13 @@ export default function TripDetailScreen() {
               ) : isOngoing ? (
                 <>
                   <Button
-                    label="📸 Tambah Foto Momen"
+                    label={t.trip.addMomentPhotoBtn}
                     size="sm"
                     variant="secondary"
                     onPress={() => setActiveTab('moments')}
                   />
                   <Button
-                    label="📦 Selesai & Cek Kepulangan"
+                    label={t.trip.finishTripBtn}
                     size="sm"
                     variant="primary"
                     onPress={handleCloseTrip}
@@ -520,7 +536,7 @@ export default function TripDetailScreen() {
               color={activeTab === 'roadmap' ? '#FFFFFF' : colors.brand.navy}
               style={styles.tabText}
             >
-              Destinasi
+              {t.trip.tabDestinations}
             </Typography>
           </Pressable>
 
@@ -538,7 +554,7 @@ export default function TripDetailScreen() {
               color={activeTab === 'packing' ? '#FFFFFF' : colors.brand.navy}
               style={styles.tabText}
             >
-              Kemas
+              {t.trip.tabPacking}
             </Typography>
           </Pressable>
 
@@ -556,7 +572,7 @@ export default function TripDetailScreen() {
               color={activeTab === 'moments' ? '#FFFFFF' : colors.brand.navy}
               style={styles.tabText}
             >
-              Momen
+              {t.trip.tabMoments}
             </Typography>
           </Pressable>
         </View>
@@ -577,7 +593,7 @@ export default function TripDetailScreen() {
               <Card style={styles.addFormCard}>
                 <View style={styles.formHeader}>
                   <Typography variant="h3" color={colors.brand.navy}>
-                    Tambah Titik Singgah Baru
+                    {t.trip.addStopHeading}
                   </Typography>
                   <Pressable onPress={() => setIsAddingDest(false)}>
                     <Ionicons name="close-circle-outline" size={22} color={colors.text.muted} />
@@ -586,15 +602,10 @@ export default function TripDetailScreen() {
 
                 {/* Quick Destination Chips */}
                 <Typography variant="caption" color={colors.text.secondary} style={styles.quickChipLabel}>
-                  Pilih Cepat:
+                  {t.trip.quickPickLabel}
                 </Typography>
                 <View style={styles.quickChipsRow}>
-                  {[
-                    { name: 'Hotel / Penginapan', act: 'Check-in & istirahat' },
-                    { name: 'Wisata Alam / Pantai', act: 'Eksplorasi alam & foto' },
-                    { name: 'Kuliner Lokal Favorit', act: 'Makan siang & santap santai' },
-                    { name: 'Pusat Oleh-Oleh', act: 'Belanja suvenir' },
-                  ].map((sug) => (
+                  {quickDestSuggestions.map((sug) => (
                     <Pressable
                       key={sug.name}
                       style={styles.sugChip}
@@ -611,35 +622,35 @@ export default function TripDetailScreen() {
                 </View>
 
                 <Input
-                  label="Nama Tempat / Titik Singgah *"
-                  placeholder="Contoh: Kawah Putih / Restoran Pagi"
+                  label={t.trip.stopNameLabel}
+                  placeholder={t.trip.stopNamePlaceholder}
                   value={newDestName}
                   onChangeText={setNewDestName}
                 />
 
                 <Input
-                  label="Rencana Aktivitas"
-                  placeholder="Contoh: Sarapan, Foto bersama, Trekking"
+                  label={t.trip.stopActivityLabel}
+                  placeholder={t.trip.stopActivityPlaceholder}
                   value={newDestActivity}
                   onChangeText={setNewDestActivity}
                 />
 
                 <Input
-                  label="Estimasi Jam"
-                  placeholder="Contoh: 09:30"
+                  label={t.trip.stopTimeLabel}
+                  placeholder="09:30"
                   value={newDestTime}
                   onChangeText={setNewDestTime}
                 />
 
                 <View style={styles.formButtons}>
                   <Button
-                    label="Batal"
+                    label={t.trip.cancel}
                     variant="ghost"
                     size="sm"
                     onPress={() => setIsAddingDest(false)}
                   />
                   <Button
-                    label="+ Simpan ke Roadmap"
+                    label={t.trip.saveStopBtn}
                     variant="primary"
                     size="sm"
                     onPress={handleAddDestination}
@@ -648,7 +659,7 @@ export default function TripDetailScreen() {
               </Card>
             ) : (
               <Button
-                label="+ Tambah Titik Singgah ke Roadmap"
+                label={t.trip.addStopTriggerBtn}
                 variant="secondary"
                 size="md"
                 onPress={() => setIsAddingDest(true)}
@@ -666,10 +677,10 @@ export default function TripDetailScreen() {
               <View style={styles.readinessHeader}>
                 <View>
                   <Typography variant="caption" color={colors.text.secondary}>
-                    Kesiapan Barang Bawaan
+                    {t.trip.readinessTitle}
                   </Typography>
                   <Typography variant="h2" color={colors.brand.navy}>
-                    {readiness.packedCount} dari {readiness.totalItems} Barang Siap
+                    {format(t.trip.readinessSubtitle, { packed: readiness.packedCount, total: readiness.totalItems })}
                   </Typography>
                 </View>
                 <Badge
@@ -684,7 +695,7 @@ export default function TripDetailScreen() {
                 variant={readinessPercent === 100 ? 'success' : 'accent'}
                 height={10}
                 showLabel
-                label="Progres Packing Koper"
+                label={t.trip.packingProgress}
               />
 
               {/* Critical Blockers */}
@@ -693,7 +704,7 @@ export default function TripDetailScreen() {
                   <View style={styles.blockerTitleRow}>
                     <Ionicons name="alert-circle" size={16} color={colors.status.error} />
                     <Typography variant="label" color={colors.status.error} style={styles.blockerTitle}>
-                      Blocker Kritis ({readiness.criticalBlockers.length} barang wajib belum siap)
+                      {format(t.trip.blockersTitle, { count: readiness.criticalBlockers.length })}
                     </Typography>
                   </View>
                   {readiness.criticalBlockers.map((b) => (
@@ -708,10 +719,10 @@ export default function TripDetailScreen() {
             {/* ONE-TAP QUICK STARTER PACKAGES */}
             <View style={styles.quickBundlesSection}>
               <Typography variant="label" color={colors.brand.navy} style={styles.bundleSectionTitle}>
-                Tambah Paket Barang Cepat (1-Tap):
+                {t.trip.quickBundlesTitle}
               </Typography>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.bundlesRow}>
-                {QUICK_PACK_BUNDLES.map((bundle) => (
+                {quickBundles.map((bundle) => (
                   <Pressable
                     key={bundle.title}
                     style={styles.bundleCard}
@@ -722,7 +733,7 @@ export default function TripDetailScreen() {
                       + {bundle.title}
                     </Typography>
                     <Typography variant="caption" color={colors.text.muted} style={styles.bundleCountText}>
-                      ({bundle.items.length} item)
+                      ({bundle.items.length} {language === 'en' ? (bundle.items.length === 1 ? 'item' : 'items') : 'item'})
                     </Typography>
                   </Pressable>
                 ))}
@@ -733,9 +744,9 @@ export default function TripDetailScreen() {
             <View style={styles.filterChipsRow}>
               {(
                 [
-                  { key: 'all', label: `Semua (${items.length})` },
-                  { key: 'unpacked', label: `Perlu Disiapkan (${readiness.totalItems - readiness.packedCount})` },
-                  { key: 'packed', label: `Sudah Dikemas (${readiness.packedCount})` },
+                  { key: 'all', label: format(t.trip.filterAll, { count: items.length }) },
+                  { key: 'unpacked', label: format(t.trip.filterUnpacked, { count: readiness.totalItems - readiness.packedCount }) },
+                  { key: 'packed', label: format(t.trip.filterPacked, { count: readiness.packedCount }) },
                 ] as const
               ).map((chip) => (
                 <Pressable
@@ -762,7 +773,7 @@ export default function TripDetailScreen() {
               {filteredItems.length === 0 ? (
                 <View style={styles.emptyItemsBox}>
                   <Typography variant="caption" color={colors.text.muted}>
-                    Belum ada barang di filter ini. Pilih paket cepat di atas atau tambahkan barang di bawah.
+                    {t.trip.emptyItemsDesc}
                   </Typography>
                 </View>
               ) : (
@@ -789,17 +800,17 @@ export default function TripDetailScreen() {
                           {item.customName}
                         </Typography>
                         <Typography variant="caption" color={colors.text.muted}>
-                          {item.category} • Jumlah: {item.quantity}
+                          {item.category} • {language === 'en' ? 'Qty:' : 'Jumlah:'} {item.quantity}
                         </Typography>
                       </View>
 
                       <Badge
                         label={
                           item.priority === 'must_have'
-                            ? 'Wajib'
+                            ? t.trip.priorityMustHave
                             : item.priority === 'conditional'
-                            ? 'Kondisional'
-                            : 'Opsional'
+                            ? t.trip.priorityConditional
+                            : t.trip.priorityOptional
                         }
                         variant={
                           item.priority === 'must_have'
@@ -818,14 +829,14 @@ export default function TripDetailScreen() {
               {/* Add item inline */}
               <View style={styles.addItemBox}>
                 <Input
-                  label="Tambah Barang Manual"
-                  placeholder="Ketik nama barang lalu tekan tombol di bawah..."
+                  label={t.trip.manualAddTitle}
+                  placeholder={t.trip.manualAddPlaceholder}
                   value={newItemName}
                   onChangeText={setNewItemName}
                 />
 
                 <Button
-                  label="+ Tambahkan ke Checklist"
+                  label={t.trip.addChecklistBtn}
                   variant="primary"
                   size="sm"
                   onPress={handleAddTripItem}
@@ -843,19 +854,26 @@ export default function TripDetailScreen() {
               <View style={styles.momentsHeader}>
                 <View style={{ flex: 1 }}>
                   <Typography variant="h3" color={colors.brand.navy} style={styles.momentsTitle}>
-                    Kenangan Perjalanan
+                    {t.trip.memoriesHeading}
                   </Typography>
                   <Typography variant="caption" color={colors.text.secondary}>
-                    Foto & catatan tersimpan offline secara lokal di perangkat Anda.
+                    {t.trip.memoriesSubtitle}
                   </Typography>
                 </View>
-                <Badge label={`${momentsList.length} Momen`} variant="primary" />
+                <Badge
+                  label={
+                    momentsList.length === 1
+                      ? t.home.onePhotoBadge
+                      : format(t.home.photosBadge, { count: momentsList.length })
+                  }
+                  variant="primary"
+                />
               </View>
 
               {/* Form Tambah Momen Baru */}
               <View style={styles.addMomentBox}>
                 <Typography variant="label" color={colors.brand.navy} style={{ marginBottom: spacing[2] }}>
-                  Abadikan Foto & Catatan Momen
+                  {t.trip.addMemoryTitle}
                 </Typography>
 
                 {/* Photo Preview / Picker Area */}
@@ -876,10 +894,10 @@ export default function TripDetailScreen() {
                         <Ionicons name="camera" size={24} color={colors.brand.blue} />
                       </View>
                       <Typography variant="label" color={colors.brand.navy} style={{ marginTop: 6, fontWeight: '700' }}>
-                        Ambil Kamera
+                        {t.trip.cameraBtn}
                       </Typography>
                       <Typography variant="caption" color={colors.text.muted}>
-                        Foto langsung
+                        {t.trip.cameraDesc}
                       </Typography>
                     </Pressable>
 
@@ -888,10 +906,10 @@ export default function TripDetailScreen() {
                         <Ionicons name="images" size={24} color={colors.brand.coral} />
                       </View>
                       <Typography variant="label" color={colors.brand.navy} style={{ marginTop: 6, fontWeight: '700' }}>
-                        Pilih Galeri
+                        {t.trip.galleryBtn}
                       </Typography>
                       <Typography variant="caption" color={colors.text.muted}>
-                        Buka foto tersimpan
+                        {t.trip.galleryDesc}
                       </Typography>
                     </Pressable>
                   </View>
@@ -899,8 +917,8 @@ export default function TripDetailScreen() {
 
                 {/* Caption Input */}
                 <Input
-                  label="Cerita atau Catatan Momen"
-                  placeholder="Contoh: Menikmati udara sejuk kebun teh & pemandangan..."
+                  label={t.trip.captionLabel}
+                  placeholder={t.trip.captionPlaceholder}
                   value={newMomentCaption}
                   onChangeText={setNewMomentCaption}
                   style={{ marginTop: spacing[3] }}
@@ -910,8 +928,8 @@ export default function TripDetailScreen() {
                 <View style={styles.locationTagBox}>
                   <View style={{ flex: 1 }}>
                     <Input
-                      label="Tag Lokasi Momen"
-                      placeholder="Nama tempat / daerah..."
+                      label={t.trip.locationTagLabel}
+                      placeholder={t.trip.locationTagPlaceholder}
                       value={momentLocationTag}
                       onChangeText={setMomentLocationTag}
                     />
@@ -927,7 +945,7 @@ export default function TripDetailScreen() {
                       <>
                         <Ionicons name="location-sharp" size={16} color="#FFFFFF" />
                         <Typography variant="caption" color="#FFFFFF" style={{ fontWeight: '700', marginLeft: 4 }}>
-                          GPS
+                          {t.trip.gpsBtn}
                         </Typography>
                       </>
                     )}
@@ -935,7 +953,7 @@ export default function TripDetailScreen() {
                 </View>
 
                 <Button
-                  label={isSavingMoment ? 'Menyimpan...' : '💾 Simpan Kenangan Lokal'}
+                  label={isSavingMoment ? t.trip.savingMomentBtn : t.trip.saveMomentBtn}
                   variant="primary"
                   size="md"
                   onPress={handleAddMoment}
@@ -946,17 +964,17 @@ export default function TripDetailScreen() {
 
               {/* Moments List */}
               <Typography variant="label" color={colors.brand.navy} style={{ marginTop: spacing[5], marginBottom: spacing[2] }}>
-                Galeri Kenangan ({momentsList.length})
+                {format(t.trip.galleryTitle, { count: momentsList.length })}
               </Typography>
 
               {momentsList.length === 0 ? (
                 <View style={styles.emptyMomentsWrap}>
                   <Ionicons name="camera-outline" size={44} color={colors.brand.blue} />
                   <Typography variant="body" color={colors.brand.navy} style={{ marginTop: spacing[2], fontWeight: '700' }}>
-                    Belum ada kenangan tersimpan
+                    {t.trip.noMemoriesYet}
                   </Typography>
                   <Typography variant="caption" color={colors.text.secondary} style={{ textAlign: 'center', marginTop: 4, paddingHorizontal: spacing[4] }}>
-                    Gunakan tombol kamera atau galeri di atas untuk mulai mengabadikan momen perjalanan Anda secara offline.
+                    {t.trip.noMemoriesDesc}
                   </Typography>
                 </View>
               ) : (
@@ -971,7 +989,7 @@ export default function TripDetailScreen() {
                     )}
                     <View style={styles.momentItemInfo}>
                       <Typography variant="body" color={colors.brand.navy} style={{ fontWeight: '700' }} numberOfLines={2}>
-                        {m.caption || 'Foto Kenangan Perjalanan'}
+                        {m.caption || (language === 'en' ? 'Trip Memory Photo' : 'Foto Kenangan Perjalanan')}
                       </Typography>
 
                       {m.locationName ? (
@@ -984,7 +1002,7 @@ export default function TripDetailScreen() {
                       ) : null}
 
                       <Typography variant="caption" color={colors.text.muted} style={{ marginTop: 2 }}>
-                        {new Date(m.capturedAt).toLocaleDateString('id-ID', {
+                        {new Date(m.capturedAt).toLocaleDateString(language === 'en' ? 'en-US' : 'id-ID', {
                           weekday: 'short',
                           day: 'numeric',
                           month: 'short',
@@ -1013,14 +1031,14 @@ export default function TripDetailScreen() {
             <View style={styles.closeHeader}>
               <Ionicons name="archive-outline" size={20} color={colors.brand.navy} />
               <Typography variant="h3" color={colors.brand.navy} style={styles.closeTitle}>
-                Selesai & Tutup Perjalanan
+                {t.trip.closeSectionTitle}
               </Typography>
             </View>
             <Typography variant="body" color={colors.text.secondary} style={styles.closeDesc}>
-              Lakukan return check dan arsipkan perjalanan ini. Jika ada barang belum diverifikasi, sistem akan menyimpannya sebagai catatan barang hilang tanpa mengunci penutupan trip.
+              {t.trip.closeSectionDesc}
             </Typography>
             <Button
-              label="Tutup & Arsipkan Perjalanan Ini"
+              label={t.trip.closeSectionBtn}
               variant="destructive"
               isLoading={isClosingTrip}
               onPress={handleCloseTrip}
@@ -1034,22 +1052,18 @@ export default function TripDetailScreen() {
 
 const styles = StyleSheet.create({
   scrollContent: {
-    paddingVertical: spacing[3],
+    paddingTop: spacing[2],
+    paddingBottom: spacing[6],
   },
-  topBar: {
+  cardHeaderRow: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing[3],
+    marginBottom: spacing[2],
+    gap: spacing[2],
   },
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: spacing[1],
-  },
-  backText: {
-    marginLeft: 6,
-    fontWeight: '700',
+  cardTitleWrap: {
+    flex: 1,
   },
   heroCard: {
     padding: spacing[5],

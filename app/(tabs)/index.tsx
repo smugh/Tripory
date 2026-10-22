@@ -11,7 +11,7 @@ import { packingRepository } from '@/db/repositories/packing.repository';
 import { momentRepository } from '@/db/repositories/moment.repository';
 import { MomentRecord } from '@/db/schema/moments';
 import { formatDateRange, formatTripDurationLabel } from '@/core/utils';
-import { TRIP_PRESETS, TripPreset } from '@/core/constants';
+import { getTripPresets, TripPreset } from '@/core/constants';
 import { useUIStore } from '@/stores/ui-store';
 import { useI18n } from '@/core/i18n';
 
@@ -40,7 +40,7 @@ export default function HomeScreen() {
       case 'ongoing':
         return {
           step: '4/5',
-          label: language === 'en' ? 'Ongoing' : 'Dalam Perjalanan',
+          label: t.home.statusOngoing,
           badgeVariant: 'accent' as const,
           progress: '80%',
           color: colors.brand.coral,
@@ -48,7 +48,7 @@ export default function HomeScreen() {
       case 'ready':
         return {
           step: '3/5',
-          label: language === 'en' ? 'Ready to Go' : 'Siap Berangkat',
+          label: t.home.statusReady,
           badgeVariant: 'success' as const,
           progress: '60%',
           color: colors.status.success,
@@ -56,7 +56,7 @@ export default function HomeScreen() {
       case 'preparing':
         return {
           step: '2/5',
-          label: language === 'en' ? 'Preparing' : 'Persiapan',
+          label: t.home.statusPreparing,
           badgeVariant: 'warning' as const,
           progress: '40%',
           color: colors.status.warning,
@@ -64,7 +64,7 @@ export default function HomeScreen() {
       case 'completed':
         return {
           step: '5/5',
-          label: language === 'en' ? 'Completed' : 'Selesai',
+          label: t.home.statusCompleted,
           badgeVariant: 'neutral' as const,
           progress: '100%',
           color: colors.brand.blue,
@@ -73,7 +73,7 @@ export default function HomeScreen() {
       default:
         return {
           step: '1/5',
-          label: language === 'en' ? 'Draft' : 'Rencana Awal',
+          label: t.home.statusDraft,
           badgeVariant: 'neutral' as const,
           progress: '20%',
           color: colors.text.muted,
@@ -238,12 +238,16 @@ export default function HomeScreen() {
                   style={styles.sectionIcon}
                 />
                 <Typography variant="h3" color={colors.text.primary}>
-                  {language === 'en' ? 'My Travel Plans' : 'Rencana Perjalanan'}
+                  {t.home.myPlansHeading}
                 </Typography>
               </View>
 
               <Badge
-                label={`${displayTrips.length} ${language === 'en' ? 'Plans' : 'Rencana'}`}
+                label={
+                  displayTrips.length === 1
+                    ? t.home.onePlanBadge
+                    : format(t.home.plansBadge, { count: displayTrips.length })
+                }
                 variant="primary"
                 size="sm"
               />
@@ -310,7 +314,7 @@ export default function HomeScreen() {
                           color={colors.text.secondary}
                           style={styles.planningMetaText}
                         >
-                          {formatDateRange(pTrip.startDate, pTrip.endDate)}
+                          {formatDateRange(pTrip.startDate, pTrip.endDate, language)}
                         </Typography>
                       </View>
                     </View>
@@ -318,7 +322,7 @@ export default function HomeScreen() {
                     {/* Tahap Sekarang: Info & Slim Progress Bar */}
                     <View style={styles.planningProgressRow}>
                       <Typography variant="caption" color={colors.text.secondary} style={styles.progressStepText}>
-                        Tahap {stage.step}: {stage.label}
+                        {format(t.home.stagePrefix, { step: stage.step, label: stage.label })}
                       </Typography>
                       <Ionicons name="chevron-forward" size={16} color={colors.text.muted} />
                     </View>
@@ -358,7 +362,7 @@ export default function HomeScreen() {
 
             {/* Instant Templates List */}
             <View style={styles.instantPresetsWrap}>
-              {TRIP_PRESETS.slice(0, 3).map((p) => (
+              {getTripPresets(language).slice(0, 3).map((p) => (
                 <Pressable
                   key={p.id}
                   style={[styles.instantPresetItem, { backgroundColor: colors.surface.card, borderColor: colors.border.default }]}
@@ -371,7 +375,7 @@ export default function HomeScreen() {
                         {p.title}
                       </Typography>
                       <Typography variant="caption" color={colors.text.muted}>
-                        {p.destination} • {p.durationDays} Days
+                        {p.destination} • {p.durationDays} {p.durationDays === 1 ? t.home.oneDaySuffix : t.home.daysSuffix}
                       </Typography>
                     </View>
                   </View>

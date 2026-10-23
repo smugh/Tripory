@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, StyleSheet, FlatList, Modal, Alert, Pressable, ScrollView } from 'react-native';
+import { View, StyleSheet, FlatList, Modal, Alert, Pressable, ScrollView, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { spacing, radius, useThemeColors } from '@/core/theme';
 import { Typography, Card, Badge, Button, Input, EmptyState, ScreenContainer } from '@/components/ui';
 import { itemRepository } from '@/db/repositories/item.repository';
 import { ItemRecord } from '@/db/schema/items';
-import { ITEM_CATEGORIES, ItemCategory, getQuickPackBundles, QuickBundle } from '@/core/constants';
+import { getQuickPackBundles, QuickBundle } from '@/core/constants';
+import { useCategoryStore } from '@/stores/category-store';
 import { useI18n } from '@/core/i18n';
 import { useUIStore } from '@/stores/ui-store';
 
@@ -14,14 +16,15 @@ export default function ItemsScreen() {
   const isDarkMode = useUIStore((s) => s.isDarkMode);
   const { t, format, language } = useI18n();
 
+  const categories = useCategoryStore((s) => s.categories);
   const quickBundles = getQuickPackBundles(language);
 
   const [itemsList, setItemsList] = useState<ItemRecord[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newItemName, setNewItemName] = useState('');
-  const [newItemCategory, setNewItemCategory] = useState<ItemCategory>('Clothing');
-  const [newItemQty, setNewItemQty] = useState('1');
+  const [newItemCategory, setNewItemCategory] = useState<string>(categories[0] || 'Clothing');
+  const [newItemImageUri, setNewItemImageUri] = useState<string | null>(null);
   const [newItemNotes, setNewItemNotes] = useState('');
 
   const loadItems = useCallback(async () => {
@@ -37,6 +40,81 @@ export default function ItemsScreen() {
     loadItems();
   }, [loadItems]);
 
+  // Keep category in sync if categories list changes
+  useEffect(() => {
+    if (categories.length > 0 && !categories.includes(newItemCategory)) {
+      setNewItemCategory(categories[0]);
+    }
+  }, [categories, newItemCategory]);
+
+  const handlePickCamera = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          language === 'en' ? 'Permission Denied' : 'Izin Ditolak',
+          language === 'en' ? 'Camera permission is required to take photos.' : 'Izin kamera diperlukan untuk mengambil foto.'
+        );
+        return;
+      }
+      const res = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      if (!res.canceled && res.assets && res.assets[0]?.uri) {
+        setNewItemImageUri(res.assets[0].uri);
+      }
+    } catch {
+      Alert.alert(language === 'en' ? 'Error' : 'Gagal', 'Failed to open camera.');
+    }
+  };
+
+  const handlePickGallery = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          language === 'en' ? 'Permission Denied' : 'Izin Ditolak',
+          language === 'en' ? 'Gallery permission is required to choose photos.' : 'Izin galeri diperlukan untuk memilih foto.'
+        );
+        return;
+      }
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      if (!res.canceled && res.assets && res.assets[0]?.uri) {
+        setNewItemImageUri(res.assets[0].uri);
+      }
+    } catch {
+      Alert.alert(language === 'en' ? 'Error' : 'Gagal', 'Failed to open gallery.');
+    }
+  };
+
+  const handleShowPhotoOptions = () => {
+    Alert.alert(
+      t.inventory.photoModalTitle,
+      t.inventory.photoModalDesc,
+      [
+        {
+          text: t.inventory.photoTakeCamera,
+          onPress: handlePickCamera,
+        },
+        {
+          text: t.inventory.photoChooseGallery,
+          onPress: handlePickGallery,
+        },
+        {
+          text: t.inventory.cancelBtn,
+          style: 'cancel',
+        },
+      ]
+    );
+  };
+
   const handleSaveItem = async () => {
     if (!newItemName.trim()) {
       Alert.alert(language === 'en' ? 'Required' : 'Perhatian', t.inventory.alertNameRequired);
@@ -47,13 +125,14 @@ export default function ItemsScreen() {
       await itemRepository.create({
         name: newItemName.trim(),
         category: newItemCategory,
-        quantity: parseInt(newItemQty, 10) || 1,
+        quantity: 1, // Standard quantity removed from form, defaults to 1
         notes: newItemNotes.trim() || null,
+        imageUri: newItemImageUri || null,
       });
 
       setNewItemName('');
       setNewItemNotes('');
-      setNewItemQty('1');
+      setNewItemImageUri(null);
       setIsModalOpen(false);
       loadItems();
     } catch {
@@ -64,7 +143,7 @@ export default function ItemsScreen() {
   const handleAddQuickBundle = async (bundle: QuickBundle) => {
     try {
       for (const item of bundle.items) {
-        let cat: ItemCategory = 'Others';
+        let cat = 'Others';
         if (bundle.category === 'Pakaian' || bundle.category === 'Clothing') cat = 'Clothing';
         else if (bundle.category === 'Elektronik' || bundle.category === 'Electronics') cat = 'Electronics';
         else if (bundle.category === 'Kesehatan' || bundle.category === 'Medicine') cat = 'Medicine';
@@ -127,7 +206,11 @@ export default function ItemsScreen() {
           label={t.inventory.addItemBtn}
           size="sm"
           variant="accent"
-          onPress={() => setIsModalOpen(true)}
+          onPress={() => {
+            setNewItemCategory(categories[0] || 'Clothing');
+            setNewItemImageUri(null);
+            setIsModalOpen(true);
+          }}
         />
       </View>
 
@@ -163,7 +246,7 @@ export default function ItemsScreen() {
         <FlatList
           horizontal
           showsHorizontalScrollIndicator={false}
-          data={['All', ...ITEM_CATEGORIES]}
+          data={['All', ...categories]}
           keyExtractor={(cat) => cat}
           renderItem={({ item: cat }) => {
             const isSelected = selectedCategory === cat;
@@ -211,25 +294,29 @@ export default function ItemsScreen() {
             ]}
           >
             <View style={styles.itemRow}>
-              <View
-                style={[
-                  styles.categoryIconCircle,
-                  { backgroundColor: isDarkMode ? themeColors.surface.muted : '#F0F4F8' },
-                ]}
-              >
-                <Ionicons
-                  name={getCategoryIcon(item.category)}
-                  size={17}
-                  color={isDarkMode ? '#93C5FD' : themeColors.brand.navy}
-                />
-              </View>
+              {item.imageUri ? (
+                <Image source={{ uri: item.imageUri }} style={styles.itemThumbImage} resizeMode="cover" />
+              ) : (
+                <View
+                  style={[
+                    styles.categoryIconCircle,
+                    { backgroundColor: isDarkMode ? themeColors.surface.muted : '#F0F4F8' },
+                  ]}
+                >
+                  <Ionicons
+                    name={getCategoryIcon(item.category)}
+                    size={17}
+                    color={isDarkMode ? '#93C5FD' : themeColors.brand.navy}
+                  />
+                </View>
+              )}
 
               <View style={styles.itemInfo}>
                 <Typography variant="body" color={themeColors.text.primary} style={styles.itemName}>
                   {item.name}
                 </Typography>
                 <Typography variant="caption" color={themeColors.text.secondary}>
-                  {t.inventory.qtyLabel} {item.quantity} {item.notes ? `• ${item.notes}` : ''}
+                  {item.notes ? item.notes : item.category}
                 </Typography>
               </View>
 
@@ -244,7 +331,11 @@ export default function ItemsScreen() {
             title={t.inventory.emptyTitle}
             description={t.inventory.emptyDesc}
             actionLabel={t.inventory.emptyAction}
-            onAction={() => setIsModalOpen(true)}
+            onAction={() => {
+              setNewItemCategory(categories[0] || 'Clothing');
+              setNewItemImageUri(null);
+              setIsModalOpen(true);
+            }}
           />
         }
       />
@@ -272,6 +363,61 @@ export default function ItemsScreen() {
               </Pressable>
             </View>
 
+            {/* 1. Item Photo Picker (Camera or Local Gallery) */}
+            <Typography variant="label" color={themeColors.text.primary} style={styles.inputLabel}>
+              {t.inventory.photoLabel}
+            </Typography>
+
+            {newItemImageUri ? (
+              <View style={styles.photoPreviewRow}>
+                <Image source={{ uri: newItemImageUri }} style={styles.photoPreviewImage} />
+                <View style={styles.photoActionButtons}>
+                  <Button
+                    label={t.inventory.photoChangeBtn}
+                    size="sm"
+                    variant="secondary"
+                    onPress={handleShowPhotoOptions}
+                  />
+                  <Button
+                    label={t.inventory.photoRemoveBtn}
+                    size="sm"
+                    variant="ghost"
+                    onPress={() => setNewItemImageUri(null)}
+                    style={{ marginTop: 6 }}
+                  />
+                </View>
+              </View>
+            ) : (
+              <View style={styles.photoPickerBtnsRow}>
+                <Pressable
+                  style={[
+                    styles.photoChoiceBtn,
+                    { backgroundColor: isDarkMode ? themeColors.surface.muted : '#F1F5F9', borderColor: themeColors.border.default },
+                  ]}
+                  onPress={handlePickCamera}
+                >
+                  <Ionicons name="camera" size={20} color={themeColors.brand.coral} />
+                  <Typography variant="caption" color={themeColors.text.primary} style={styles.photoChoiceText}>
+                    {t.inventory.photoTakeCamera}
+                  </Typography>
+                </Pressable>
+
+                <Pressable
+                  style={[
+                    styles.photoChoiceBtn,
+                    { backgroundColor: isDarkMode ? themeColors.surface.muted : '#F1F5F9', borderColor: themeColors.border.default },
+                  ]}
+                  onPress={handlePickGallery}
+                >
+                  <Ionicons name="image" size={20} color={themeColors.brand.blue} />
+                  <Typography variant="caption" color={themeColors.text.primary} style={styles.photoChoiceText}>
+                    {t.inventory.photoChooseGallery}
+                  </Typography>
+                </Pressable>
+              </View>
+            )}
+
+            {/* 2. Item Name */}
             <Input
               label={t.inventory.nameLabel}
               placeholder={t.inventory.namePlaceholder}
@@ -279,11 +425,12 @@ export default function ItemsScreen() {
               onChangeText={setNewItemName}
             />
 
+            {/* 3. Category Select */}
             <Typography variant="label" color={themeColors.text.primary} style={styles.inputLabel}>
               {t.inventory.categoryLabel}
             </Typography>
             <View style={styles.categorySelectGrid}>
-              {ITEM_CATEGORIES.map((cat) => (
+              {categories.map((cat) => (
                 <Pressable
                   key={cat}
                   onPress={() => setNewItemCategory(cat)}
@@ -309,14 +456,7 @@ export default function ItemsScreen() {
               ))}
             </View>
 
-            <Input
-              label={t.inventory.qtyInputLabel}
-              placeholder="1"
-              value={newItemQty}
-              onChangeText={setNewItemQty}
-              keyboardType="numeric"
-            />
-
+            {/* 4. Notes (Optional) */}
             <Input
               label={t.inventory.notesLabel}
               placeholder={t.inventory.notesPlaceholder}
@@ -408,6 +548,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  itemThumbImage: {
+    width: 38,
+    height: 38,
+    borderRadius: 8,
+    marginRight: spacing[3],
+    backgroundColor: '#E2E8F0',
+  },
   categoryIconCircle: {
     width: 34,
     height: 34,
@@ -441,11 +588,46 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing[4],
+    marginBottom: spacing[3],
   },
   inputLabel: {
     marginBottom: 6,
     fontWeight: '600',
+  },
+  photoPickerBtnsRow: {
+    flexDirection: 'row',
+    gap: spacing[2],
+    marginBottom: spacing[3],
+  },
+  photoChoiceBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: radius.md,
+    borderWidth: 1,
+  },
+  photoChoiceText: {
+    fontWeight: '600',
+    fontSize: 12,
+  },
+  photoPreviewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[3],
+    marginBottom: spacing[3],
+  },
+  photoPreviewImage: {
+    width: 64,
+    height: 64,
+    borderRadius: radius.md,
+    backgroundColor: '#CBD5E1',
+  },
+  photoActionButtons: {
+    flex: 1,
   },
   categorySelectGrid: {
     flexDirection: 'row',

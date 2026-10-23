@@ -2,6 +2,7 @@ import React from 'react';
 import { View, StyleSheet, Pressable, Image } from 'react-native';
 import { Tabs, useRouter } from 'expo-router';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/core/theme';
 import { useUIStore } from '@/stores/ui-store';
 import { useI18n } from '@/core/i18n';
@@ -12,6 +13,10 @@ export default function TabLayout() {
   const colors = useThemeColors();
   const isDarkMode = useUIStore((s) => s.isDarkMode);
   const { t } = useI18n();
+  const insets = useSafeAreaInsets();
+
+  const bottomInset = Math.max(insets.bottom, 10);
+  const tabHeight = 62 + bottomInset;
 
   return (
     <Tabs
@@ -21,9 +26,9 @@ export default function TabLayout() {
         tabBarStyle: {
           backgroundColor: colors.surface.card,
           borderTopColor: colors.border.default,
-          height: 68,
-          paddingBottom: 8,
-          paddingTop: 6,
+          height: tabHeight,
+          paddingBottom: bottomInset,
+          paddingTop: 8,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: -2 },
           shadowOpacity: isDarkMode ? 0.3 : 0.06,
@@ -81,32 +86,34 @@ export default function TabLayout() {
         }}
       />
 
-      {/* Tombol Tengah: Buat Trip Baru (Proporsional & Travel-Themed) */}
+      {/* Tombol Tengah: Buat Trip Baru (100% Center & Space-Optimized) */}
       <Tabs.Screen
         name="create"
         options={{
-          title: '',
+          title: t.tabs.create,
           tabBarLabel: () => null,
-          tabBarButton: () => (
-            <View style={styles.centerButtonOuter}>
-              <Pressable
-                onPress={() => router.push('/trip/new')}
-                style={({ pressed }) => [
+          tabBarButton: ({ ref, style, ...restProps }) => (
+            <Pressable
+              {...restProps}
+              style={[style, styles.centerTabPressable]}
+              onPress={() => router.push('/trip/new')}
+              accessibilityLabel={t.tabs.create}
+              accessibilityRole="button"
+            >
+              <View
+                style={[
                   styles.centerButton,
                   {
                     backgroundColor: colors.brand.coral,
                   },
-                  pressed && styles.centerButtonPressed,
                 ]}
-                accessibilityLabel={t.tabs.create}
-                accessibilityRole="button"
               >
                 <Image
                   source={require('@/../assets/images/logo-white.png')}
                   style={styles.centerLogo}
                   resizeMode="contain"
                 />
-              </Pressable>
+              </View>
               <Typography
                 variant="caption"
                 color={colors.brand.coral}
@@ -114,7 +121,7 @@ export default function TabLayout() {
               >
                 {t.tabs.create}
               </Typography>
-            </View>
+            </Pressable>
           ),
         }}
         listeners={{
@@ -159,16 +166,15 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
-  centerButtonOuter: {
-    justifyContent: 'center',
+  centerTabPressable: {
+    flex: 1,
     alignItems: 'center',
-    width: 64,
-    height: '100%',
-    paddingTop: 1,
+    justifyContent: 'center',
+    paddingTop: 2,
   },
   centerButton: {
     width: 44,
-    height: 34,
+    height: 32,
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
@@ -179,17 +185,13 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   centerLogo: {
-    width: 20,
-    height: 20,
+    width: 18,
+    height: 18,
   },
   centerButtonLabel: {
     fontSize: 10,
     fontWeight: '700',
     marginTop: 3,
     letterSpacing: 0.2,
-  },
-  centerButtonPressed: {
-    transform: [{ scale: 0.94 }],
-    opacity: 0.88,
   },
 });

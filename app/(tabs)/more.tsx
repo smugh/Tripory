@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   StyleSheet,
@@ -13,13 +13,16 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
+import * as MailComposer from 'expo-mail-composer';
 import { spacing, radius, useThemeColors } from '@/core/theme';
-import { Typography, Card, Badge, ScreenContainer, Button } from '@/components/ui';
+import { Typography, Card, Badge, ScreenContainer } from '@/components/ui';
 import { APP_CONFIG } from '@/core/constants';
 import { useUIStore } from '@/stores/ui-store';
+import { useCategoryStore } from '@/stores/category-store';
 import { useI18n } from '@/core/i18n';
 import { backupService } from '@/services/backup.service';
-import * as FileSystem from 'expo-file-system/legacy';
 
 export default function SettingsScreen() {
   const themeColors = useThemeColors();
@@ -27,6 +30,19 @@ export default function SettingsScreen() {
   const isDarkMode = useUIStore((s) => s.isDarkMode);
   const toggleTheme = useUIStore((s) => s.toggleTheme);
   const setLanguage = useUIStore((s) => s.setLanguage);
+
+  // Categories Store
+  const categories = useCategoryStore((s) => s.categories);
+  const addCategory = useCategoryStore((s) => s.addCategory);
+  const deleteCategory = useCategoryStore((s) => s.deleteCategory);
+  const [isAddCatModalVisible, setIsAddCatModalVisible] = useState(false);
+  const [newCatInput, setNewCatInput] = useState('');
+
+  // Device Permissions State
+  const [cameraPerm, setCameraPerm] = useState<string>('checking');
+  const [photosPerm, setPhotosPerm] = useState<string>('checking');
+  const [locationPerm, setLocationPerm] = useState<string>('checking');
+  const [emailPerm, setEmailPerm] = useState<boolean>(true);
 
   // Gmail Backup State
   const gmailAccount = useUIStore((s) => s.gmailAccount);
@@ -43,29 +59,96 @@ export default function SettingsScreen() {
   // Accessibility States
   const [hapticFeedback, setHapticFeedback] = useState(true);
   const [highContrast, setHighContrast] = useState(false);
-  const [storageUsage, setStorageUsage] = useState<string>('...');
+
+  const checkAllPermissions = useCallback(async () => {
+    try {
+      const cam = await ImagePicker.getCameraPermissionsAsync();
+      setCameraPerm(cam.granted ? 'granted' : 'not_granted');
+
+      const photo = await ImagePicker.getMediaLibraryPermissionsAsync();
+      setPhotosPerm(photo.granted ? 'granted' : 'not_granted');
+
+      const loc = await Location.getForegroundPermissionsAsync();
+      setLocationPerm(loc.granted ? 'granted' : 'not_granted');
+
+      const mail = await MailComposer.isAvailableAsync();
+      setEmailPerm(mail);
+    } catch {
+      // silent catch
+    }
+  }, []);
 
   useEffect(() => {
-    async function calculateStorage() {
-      try {
-        if (!FileSystem.documentDirectory) {
-          setStorageUsage('0 KB');
-          return;
-        }
-        const mediaDir = `${FileSystem.documentDirectory}${APP_CONFIG.storageMediaDir}`;
-        const dirInfo = await FileSystem.getInfoAsync(mediaDir);
-        if (dirInfo.exists && 'size' in dirInfo && typeof dirInfo.size === 'number') {
-          const mb = (dirInfo.size / (1024 * 1024)).toFixed(2);
-          setStorageUsage(`${mb} MB`);
-        } else {
-          setStorageUsage('< 1 MB');
-        }
-      } catch {
-        setStorageUsage(t.settings.offlineOnly);
+    checkAllPermissions();
+  }, [checkAllPermissions]);
+
+  const requestCameraPermission = async () => {
+    try {
+      const res = await ImagePicker.requestCameraPermissionsAsync();
+      setCameraPerm(res.granted ? 'granted' : 'not_granted');
+      if (res.granted) {
+        Alert.alert(language === 'en' ? 'Success' : 'Sukses', language === 'en' ? 'Camera access granted.' : 'Akses kamera diizinkan.');
       }
+    } catch {
+      // ignore
     }
-    calculateStorage();
-  }, [t.settings.offlineOnly]);
+  };
+
+  const requestPhotosPermission = async () => {
+    try {
+      const res = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      setPhotosPerm(res.granted ? 'granted' : 'not_granted');
+      if (res.granted) {
+        Alert.alert(language === 'en' ? 'Success' : 'Sukses', language === 'en' ? 'Photo library access granted.' : 'Akses galeri foto diizinkan.');
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  const requestLocationPermission = async () => {
+    try {
+      const res = await Location.requestForegroundPermissionsAsync();
+      setLocationPerm(res.granted ? 'granted' : 'not_granted');
+      if (res.granted) {
+        Alert.alert(language === 'en' ? 'Success' : 'Sukses', language === 'en' ? 'Location & GPS access granted.' : 'Akses lokasi dan GPS diizinkan.');
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleAddCategory = () => {
+    const trimmed = newCatInput.trim();
+    if (!trimmed) return;
+    const res = addCategory(trimmed);
+    if (res.success) {
+      setNewCatInput('');
+      setIsAddCatModalVisible(false);
+    } else {
+      Alert.alert(language === 'en' ? 'Notice' : 'Perhatian', res.error || 'Failed to add category');
+    }
+  };
+
+  const handleDeleteCategory = (cat: string) => {
+    Alert.alert(
+      t.settings.deleteCategoryConfirmTitle,
+      format(t.settings.deleteCategoryConfirmDesc, { name: cat }),
+      [
+        { text: t.settings.cancel, style: 'cancel' },
+        {
+          text: language === 'en' ? 'Delete' : 'Hapus',
+          style: 'destructive',
+          onPress: () => {
+            const res = deleteCategory(cat);
+            if (!res.success && res.error) {
+              Alert.alert(language === 'en' ? 'Notice' : 'Perhatian', res.error);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   // Handle Save Gmail
   const handleSaveGmail = () => {
@@ -94,7 +177,7 @@ export default function SettingsScreen() {
 
     try {
       setIsBackingUp(true);
-      const res = await backupService.backupAndSendToGmail(gmailAccount);
+      await backupService.backupAndSendToGmail(gmailAccount);
       const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' });
       setLastBackupTime(nowStr);
 
@@ -167,9 +250,9 @@ export default function SettingsScreen() {
   };
 
   return (
-    <ScreenContainer>
+    <ScreenContainer edges={['left', 'right', 'bottom']}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* User Profile Card */}
+        {/* User Profile Card (Maximized Top Space & Clean UI) */}
         <Card variant="navy" style={styles.profileCard}>
           <View style={styles.profileTop}>
             <View style={styles.avatarCircle}>
@@ -179,18 +262,193 @@ export default function SettingsScreen() {
               <Typography variant="h3" color="#FFFFFF" style={styles.profileName}>
                 {t.settings.profileName}
               </Typography>
-              <Typography variant="caption" color={themeColors.brand.coral} style={styles.profileRole}>
-                {t.settings.profileRole}
+              <Typography variant="caption" color="#CBD5E1" style={styles.profileDesc}>
+                {t.settings.profileDesc}
               </Typography>
             </View>
-            <Badge label={t.settings.localBadge} variant="accent" size="sm" />
           </View>
-          <Typography variant="caption" color="#CBD5E1" style={styles.profileDesc}>
-            {t.settings.profileDesc}
-          </Typography>
         </Card>
 
-        {/* Section 1: Gmail Backup & Restore (Destinasi Pencadangan Gmail) */}
+        {/* Section 1: Item Categories Management (Kelola Kategori) */}
+        <Typography variant="label" color={themeColors.text.primary} style={styles.sectionHeader}>
+          {t.settings.categoriesSection}
+        </Typography>
+
+        <Card elevated style={[styles.card, { backgroundColor: themeColors.surface.card, borderColor: themeColors.border.default }]}>
+          <View style={styles.cardHeaderRow}>
+            <View style={{ flex: 1, paddingRight: spacing[2] }}>
+              <Typography variant="body" color={themeColors.text.primary} style={{ fontWeight: '700' }}>
+                {t.settings.categoriesSection}
+              </Typography>
+              <Typography variant="caption" color={themeColors.text.muted}>
+                {t.settings.categoriesDesc}
+              </Typography>
+            </View>
+            <Pressable
+              style={[styles.addCatBtn, { backgroundColor: themeColors.brand.blue }]}
+              onPress={() => setIsAddCatModalVisible(true)}
+            >
+              <Ionicons name="add" size={16} color="#FFFFFF" />
+              <Typography variant="caption" color="#FFFFFF" style={{ fontWeight: '700', marginLeft: 2 }}>
+                {language === 'en' ? 'Add' : 'Tambah'}
+              </Typography>
+            </Pressable>
+          </View>
+
+          {/* Category Chips Wrap */}
+          <View style={styles.categoriesWrap}>
+            {categories.map((cat) => (
+              <View
+                key={cat}
+                style={[
+                  styles.categoryChip,
+                  {
+                    backgroundColor: isDarkMode ? 'rgba(56, 189, 248, 0.12)' : '#F1F5F9',
+                    borderColor: themeColors.border.default,
+                  },
+                ]}
+              >
+                <Typography variant="caption" color={themeColors.text.primary} style={styles.categoryChipText}>
+                  {cat}
+                </Typography>
+                <Pressable
+                  onPress={() => handleDeleteCategory(cat)}
+                  hitSlop={8}
+                  style={styles.categoryDeleteBtn}
+                >
+                  <Ionicons name="close-circle" size={16} color={themeColors.brand.coral} />
+                </Pressable>
+              </View>
+            ))}
+          </View>
+        </Card>
+
+        {/* Section 2: Device Access & Permissions (Akses Permission Device) */}
+        <Typography variant="label" color={themeColors.text.primary} style={styles.sectionHeader}>
+          {t.settings.permissionsSection}
+        </Typography>
+
+        <Card elevated style={[styles.card, { backgroundColor: themeColors.surface.card, borderColor: themeColors.border.default }]}>
+          {/* Camera Permission */}
+          <View style={[styles.permRow, { borderBottomColor: themeColors.border.muted }]}>
+            <View style={styles.permIconWrap}>
+              <Ionicons name="camera" size={20} color={themeColors.brand.coral} />
+            </View>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Typography variant="body" color={themeColors.text.primary} style={{ fontWeight: '700' }}>
+                {t.settings.permCamera}
+              </Typography>
+              <Typography variant="caption" color={themeColors.text.muted}>
+                {t.settings.permCameraDesc}
+              </Typography>
+            </View>
+            {cameraPerm === 'granted' ? (
+              <Badge label={t.settings.permGranted} variant="success" size="sm" dot />
+            ) : (
+              <Pressable
+                style={[styles.permActionBtn, { backgroundColor: themeColors.brand.blue }]}
+                onPress={requestCameraPermission}
+              >
+                <Typography variant="caption" color="#FFFFFF" style={{ fontWeight: '700' }}>
+                  {t.settings.permRequest}
+                </Typography>
+              </Pressable>
+            )}
+          </View>
+
+          {/* Photos & Local Files Permission */}
+          <View style={[styles.permRow, { borderBottomColor: themeColors.border.muted }]}>
+            <View style={styles.permIconWrap}>
+              <Ionicons name="images" size={20} color={themeColors.brand.blue} />
+            </View>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Typography variant="body" color={themeColors.text.primary} style={{ fontWeight: '700' }}>
+                {t.settings.permPhotos}
+              </Typography>
+              <Typography variant="caption" color={themeColors.text.muted}>
+                {t.settings.permPhotosDesc}
+              </Typography>
+            </View>
+            {photosPerm === 'granted' ? (
+              <Badge label={t.settings.permGranted} variant="success" size="sm" dot />
+            ) : (
+              <Pressable
+                style={[styles.permActionBtn, { backgroundColor: themeColors.brand.blue }]}
+                onPress={requestPhotosPermission}
+              >
+                <Typography variant="caption" color="#FFFFFF" style={{ fontWeight: '700' }}>
+                  {t.settings.permRequest}
+                </Typography>
+              </Pressable>
+            )}
+          </View>
+
+          {/* Location & GPS Permission */}
+          <View style={[styles.permRow, { borderBottomColor: themeColors.border.muted }]}>
+            <View style={styles.permIconWrap}>
+              <Ionicons name="location" size={20} color="#10B981" />
+            </View>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Typography variant="body" color={themeColors.text.primary} style={{ fontWeight: '700' }}>
+                {t.settings.permLocation}
+              </Typography>
+              <Typography variant="caption" color={themeColors.text.muted}>
+                {t.settings.permLocationDesc}
+              </Typography>
+            </View>
+            {locationPerm === 'granted' ? (
+              <Badge label={t.settings.permGranted} variant="success" size="sm" dot />
+            ) : (
+              <Pressable
+                style={[styles.permActionBtn, { backgroundColor: themeColors.brand.blue }]}
+                onPress={requestLocationPermission}
+              >
+                <Typography variant="caption" color="#FFFFFF" style={{ fontWeight: '700' }}>
+                  {t.settings.permRequest}
+                </Typography>
+              </Pressable>
+            )}
+          </View>
+
+          {/* Email (Gmail) Status */}
+          <View style={[styles.permRow, { borderBottomColor: themeColors.border.muted }]}>
+            <View style={styles.permIconWrap}>
+              <Ionicons name="mail" size={20} color="#EA4335" />
+            </View>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Typography variant="body" color={themeColors.text.primary} style={{ fontWeight: '700' }}>
+                {t.settings.permEmail}
+              </Typography>
+              <Typography variant="caption" color={themeColors.text.muted}>
+                {t.settings.permEmailDesc}
+              </Typography>
+            </View>
+            <Badge
+              label={emailPerm ? t.settings.permActive : t.settings.permCheck}
+              variant={emailPerm ? 'success' : 'neutral'}
+              size="sm"
+              dot={emailPerm}
+            />
+          </View>
+
+          {/* Date & System Time */}
+          <View style={styles.permRowLast}>
+            <View style={styles.permIconWrap}>
+              <Ionicons name="time" size={20} color="#F59E0B" />
+            </View>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Typography variant="body" color={themeColors.text.primary} style={{ fontWeight: '700' }}>
+                {t.settings.permDateTime}
+              </Typography>
+              <Typography variant="caption" color={themeColors.text.muted}>
+                {t.settings.permDateTimeDesc}
+              </Typography>
+            </View>
+            <Badge label={t.settings.permActive} variant="info" size="sm" dot />
+          </View>
+        </Card>
+
+        {/* Section 3: Gmail Backup & Restore (Destinasi Pencadangan Gmail) */}
         <Typography variant="label" color={themeColors.text.primary} style={styles.sectionHeader}>
           {t.settings.gmailSection}
         </Typography>
@@ -308,7 +566,7 @@ export default function SettingsScreen() {
           </View>
         </Card>
 
-        {/* Section 2: Language Selection */}
+        {/* Section 4: Language Selection */}
         <Typography variant="label" color={themeColors.text.primary} style={styles.sectionHeader}>
           {t.settings.languageSection}
         </Typography>
@@ -379,7 +637,7 @@ export default function SettingsScreen() {
           </View>
         </Card>
 
-        {/* Section 3: Appearance & Accessibility */}
+        {/* Section 5: Appearance & Accessibility */}
         <Typography variant="label" color={themeColors.text.primary} style={styles.sectionHeader}>
           {t.settings.appearanceSection}
         </Typography>
@@ -455,56 +713,7 @@ export default function SettingsScreen() {
           </View>
         </Card>
 
-        {/* Section 4: Device & System Info */}
-        <Typography variant="label" color={themeColors.text.primary} style={styles.sectionHeader}>
-          {t.settings.deviceSection}
-        </Typography>
-
-        <Card elevated style={[styles.card, { backgroundColor: themeColors.surface.card, borderColor: themeColors.border.default }]}>
-          <View style={[styles.infoRow, { borderBottomColor: themeColors.border.muted }]}>
-            <View style={styles.infoLeft}>
-              <Ionicons name="phone-portrait-outline" size={17} color={themeColors.brand.blue} />
-              <Typography variant="body" color={themeColors.text.secondary} style={styles.infoLabel}>
-                {t.settings.os}
-              </Typography>
-            </View>
-            <Badge label={`${Platform.OS.toUpperCase()} (API ${Platform.Version})`} variant="info" size="sm" />
-          </View>
-
-          <View style={[styles.infoRow, { borderBottomColor: themeColors.border.muted }]}>
-            <View style={styles.infoLeft}>
-              <Ionicons name="server-outline" size={17} color={themeColors.status.success} />
-              <Typography variant="body" color={themeColors.text.secondary} style={styles.infoLabel}>
-                {t.settings.database}
-              </Typography>
-            </View>
-            <Badge label={t.settings.databaseVal} variant="success" size="sm" dot />
-          </View>
-
-          <View style={[styles.infoRow, { borderBottomColor: themeColors.border.muted }]}>
-            <View style={styles.infoLeft}>
-              <Ionicons name="images-outline" size={17} color={themeColors.brand.coral} />
-              <Typography variant="body" color={themeColors.text.secondary} style={styles.infoLabel}>
-                {t.settings.mediaStorage}
-              </Typography>
-            </View>
-            <Typography variant="label" color={themeColors.text.primary}>
-              {storageUsage}
-            </Typography>
-          </View>
-
-          <View style={styles.infoRowLast}>
-            <View style={styles.infoLeft}>
-              <Ionicons name="cloud-offline-outline" size={17} color={themeColors.text.muted} />
-              <Typography variant="body" color={themeColors.text.secondary} style={styles.infoLabel}>
-                {t.settings.operationMode}
-              </Typography>
-            </View>
-            <Badge label={t.settings.offlineOnly} variant="neutral" size="sm" />
-          </View>
-        </Card>
-
-        {/* Section 5: Data & Privacy */}
+        {/* Section 6: Data & Privacy */}
         <Typography variant="label" color={themeColors.text.primary} style={styles.sectionHeader}>
           {t.settings.dataSection}
         </Typography>
@@ -541,7 +750,7 @@ export default function SettingsScreen() {
           </Pressable>
         </Card>
 
-        {/* Section 6: About Tripory */}
+        {/* Section 7: About Tripory (Mobile and EAS subtitle removed) */}
         <Typography variant="label" color={themeColors.text.primary} style={styles.sectionHeader}>
           {t.settings.aboutSection}
         </Typography>
@@ -563,7 +772,7 @@ export default function SettingsScreen() {
             />
             <View style={{ flex: 1, marginLeft: 12 }}>
               <Typography variant="h3" color={themeColors.brand.navy}>
-                Tripory Mobile
+                Tripory
               </Typography>
               <Typography variant="caption" color={themeColors.text.muted}>
                 {format(t.settings.aboutSubtitle, { version: APP_CONFIG.version })}
@@ -575,6 +784,82 @@ export default function SettingsScreen() {
           </Typography>
         </Card>
       </ScrollView>
+
+      {/* Add Category Modal */}
+      <Modal
+        visible={isAddCatModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsAddCatModalVisible(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setIsAddCatModalVisible(false)}
+        >
+          <Pressable
+            style={[
+              styles.modalContent,
+              {
+                backgroundColor: themeColors.surface.card,
+                borderColor: themeColors.border.default,
+              },
+            ]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={styles.modalHeader}>
+              <View style={[styles.modalIconWrap, { backgroundColor: isDarkMode ? 'rgba(56, 189, 248, 0.2)' : '#EFF6FF' }]}>
+                <Ionicons name="pricetag" size={24} color={themeColors.brand.blue} />
+              </View>
+              <Typography variant="h3" color={themeColors.text.primary} style={styles.modalTitle}>
+                {t.settings.addCategoryPromptTitle}
+              </Typography>
+              <Typography variant="caption" color={themeColors.text.muted} style={styles.modalSubtitle}>
+                {t.settings.addCategoryPromptDesc}
+              </Typography>
+            </View>
+
+            <TextInput
+              style={[
+                styles.addCatInput,
+                {
+                  color: themeColors.text.primary,
+                  borderColor: themeColors.border.focus,
+                  backgroundColor: isDarkMode ? themeColors.surface.muted : '#F8FAFC',
+                },
+              ]}
+              placeholder={t.settings.categoryNamePlaceholder}
+              placeholderTextColor={themeColors.text.muted}
+              value={newCatInput}
+              onChangeText={setNewCatInput}
+              autoFocus
+              maxLength={30}
+            />
+
+            <View style={styles.catModalActions}>
+              <Pressable
+                style={[styles.modalBtnSecondary, { backgroundColor: isDarkMode ? themeColors.surface.muted : '#F1F5F9' }]}
+                onPress={() => {
+                  setNewCatInput('');
+                  setIsAddCatModalVisible(false);
+                }}
+              >
+                <Typography variant="label" color={themeColors.text.primary}>
+                  {t.settings.cancel}
+                </Typography>
+              </Pressable>
+
+              <Pressable
+                style={[styles.modalBtnPrimary, { backgroundColor: themeColors.brand.blue }]}
+                onPress={handleAddCategory}
+              >
+                <Typography variant="label" color="#FFFFFF">
+                  {language === 'en' ? 'Add' : 'Tambah'}
+                </Typography>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* Restore Data Selection Modal */}
       <Modal
@@ -665,17 +950,17 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   scrollContent: {
-    paddingVertical: spacing[3],
+    paddingTop: spacing[1],
     paddingBottom: spacing[8],
   },
   profileCard: {
     padding: spacing[4],
+    marginTop: 0,
     marginBottom: spacing[4],
   },
   profileTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing[2],
   },
   avatarCircle: {
     width: 44,
@@ -692,12 +977,9 @@ const styles = StyleSheet.create({
   profileName: {
     fontWeight: '800',
   },
-  profileRole: {
-    fontWeight: '600',
-    marginTop: 2,
-  },
   profileDesc: {
     lineHeight: 18,
+    marginTop: 2,
   },
   sectionHeader: {
     marginBottom: spacing[2],
@@ -710,6 +992,65 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing[4],
     paddingVertical: spacing[3],
     borderRadius: radius.lg,
+  },
+  cardHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing[3],
+  },
+  addCatBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing[3],
+    paddingVertical: 6,
+    borderRadius: radius.md,
+  },
+  categoriesWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing[2],
+  },
+  categoryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing[3],
+    paddingVertical: 6,
+    borderRadius: radius.full,
+    borderWidth: 1,
+  },
+  categoryChipText: {
+    fontWeight: '600',
+    marginRight: 6,
+  },
+  categoryDeleteBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Device Permissions Styles
+  permRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing[3],
+    borderBottomWidth: 1,
+  },
+  permRowLast: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing[3],
+  },
+  permIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(100, 116, 139, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  permActionBtn: {
+    paddingHorizontal: spacing[3],
+    paddingVertical: 6,
+    borderRadius: radius.md,
   },
   // Gmail Section Styles
   gmailHeaderRow: {
@@ -828,9 +1169,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
   },
-  infoLabel: {
-    marginLeft: 10,
-  },
   actionRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -890,6 +1228,32 @@ const styles = StyleSheet.create({
   modalSubtitle: {
     textAlign: 'center',
     marginTop: 4,
+  },
+  addCatInput: {
+    height: 44,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing[3],
+    fontSize: 14,
+    marginBottom: spacing[4],
+  },
+  catModalActions: {
+    flexDirection: 'row',
+    gap: spacing[2],
+  },
+  modalBtnSecondary: {
+    flex: 1,
+    height: 44,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalBtnPrimary: {
+    flex: 1,
+    height: 44,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   restoreOptionCard: {
     flexDirection: 'row',

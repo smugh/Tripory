@@ -28,4 +28,9 @@ export const itemRepository = {
   async delete(id: string): Promise<void> {
     db.delete(items).where(eq(items.id, id)).run();
   },
+
+  async update(id: string, updates: Partial<Omit<NewItemRecord, 'id' | 'createdAt'>>): Promise<void> {
+    const now = new Date().toISOString();
+    db.update(items).set({ ...updates, updatedAt: now }).where(eq(items.id, id)).run();
+  },
 };

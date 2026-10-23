@@ -131,6 +131,13 @@ export const MIGRATIONS: MigrationStep[] = [
       ALTER TABLE destinations ADD COLUMN todos TEXT;
     `,
   },
+  {
+    version: 4,
+    name: '0003_add_item_image_uri',
+    sql: `
+      ALTER TABLE items ADD COLUMN image_uri TEXT;
+    `,
+  },
 ];
 
 /**

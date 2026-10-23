@@ -11,6 +11,7 @@ export const items = sqliteTable('items', {
   category: text('category').notNull(),
   quantity: integer('quantity').notNull().default(1),
   notes: text('notes'),
+  imageUri: text('image_uri'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 });

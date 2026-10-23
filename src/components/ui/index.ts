@@ -6,3 +6,4 @@ export * from './Input';
 export * from './EmptyState';
 export * from './ScreenContainer';
 export * from './ProgressBar';
+export * from './DatePickerModal';

@@ -1,13 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, StyleSheet, ScrollView, Alert, Pressable, Switch } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, radius, useThemeColors } from '@/core/theme';
-import { Typography, Input, Button, Card, ScreenContainer, Badge } from '@/components/ui';
+import { Typography, Input, Button, Card, ScreenContainer, Badge, DatePickerModal } from '@/components/ui';
 import { tripService } from '@/domains/trip/service';
 import { destinationRepository } from '@/db/repositories/destination.repository';
 import { packingRepository } from '@/db/repositories/packing.repository';
-import { formatTripDurationLabel } from '@/core/utils';
+import { formatTripDurationLabel, calculateDurationDays } from '@/core/utils';
 import { getTripPresets, TripPreset } from '@/core/constants';
 import { useUIStore } from '@/stores/ui-store';
 import { useI18n } from '@/core/i18n';
@@ -16,7 +16,7 @@ export default function NewTripScreen() {
   const router = useRouter();
   const themeColors = useThemeColors();
   const isDarkMode = useUIStore((s) => s.isDarkMode);
-  const { t, language } = useI18n();
+  const { t, format, language } = useI18n();
 
   const presets = getTripPresets(language);
 
@@ -24,18 +24,10 @@ export default function NewTripScreen() {
   const formatDateYmd = (d: Date) => d.toISOString().split('T')[0];
 
   const now = new Date();
+  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
   const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
   const nextWeekend = new Date();
   nextWeekend.setDate(now.getDate() + ((6 - now.getDay() + 7) % 7 || 7));
-
-  const [selectedPreset, setSelectedPreset] = useState<TripPreset | null>(presets[0]);
-  const [name, setName] = useState(presets[0].title);
-  const [destination, setDestination] = useState(presets[0].destination);
-  const [startDate, setStartDate] = useState(formatDateYmd(tomorrow));
-  const [durationDays, setDurationDays] = useState(presets[0].durationDays);
-  const [notes, setNotes] = useState('');
-  const [includeStarterPack, setIncludeStarterPack] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Compute end date based on start date & duration
   const computeEndDate = (startIso: string, days: number): string => {
@@ -45,18 +37,51 @@ export default function NewTripScreen() {
     return formatDateYmd(end);
   };
 
-  const endDate = computeEndDate(startDate, durationDays);
-  const durationLabel = formatTripDurationLabel(startDate, endDate, language);
+  // State: Template minimize by default as requested
+  const [isTemplateExpanded, setIsTemplateExpanded] = useState(false);
+  const [selectedPreset, setSelectedPreset] = useState<TripPreset | null>(presets[0]);
+  const [name, setName] = useState(presets[0].title);
+  const [destination, setDestination] = useState(presets[0].destination);
+  const [startDate, setStartDate] = useState(formatDateYmd(tomorrow));
+  const [endDate, setEndDate] = useState(computeEndDate(formatDateYmd(tomorrow), presets[0].durationDays));
+  const [activePicker, setActivePicker] = useState<'departure' | 'end' | null>(null);
+  const [notes, setNotes] = useState('');
+  const [includeStarterPack, setIncludeStarterPack] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // View-only auto-computed duration response
+  const durationDays = useMemo(() => calculateDurationDays(startDate, endDate), [startDate, endDate]);
+  const durationLabel = useMemo(() => formatTripDurationLabel(startDate, endDate, language), [startDate, endDate, language]);
+  const isBackdate = useMemo(() => startDate < formatDateYmd(now), [startDate, now]);
 
   const applyPreset = (preset: TripPreset) => {
     setSelectedPreset(preset);
     setName(preset.title);
     setDestination(preset.destination);
-    setDurationDays(preset.durationDays);
+    setEndDate(computeEndDate(startDate, preset.durationDays));
   };
 
-  const handleStartDateSelect = (date: Date) => {
-    setStartDate(formatDateYmd(date));
+  const handleStartDateSelect = (dateStr: string) => {
+    setStartDate(dateStr);
+    if (endDate < dateStr) {
+      setEndDate(dateStr);
+    }
+  };
+
+  const handleEndDateSelect = (dateStr: string) => {
+    if (dateStr < startDate) {
+      setEndDate(startDate);
+    } else {
+      setEndDate(dateStr);
+    }
+  };
+
+  const handleAddDaysToEnd = (daysToAdd: number) => {
+    const s = new Date(startDate);
+    if (!isNaN(s.getTime())) {
+      const target = new Date(s.getTime() + daysToAdd * 24 * 60 * 60 * 1000);
+      setEndDate(formatDateYmd(target));
+    }
   };
 
   const handleCreate = async () => {
@@ -132,64 +157,97 @@ export default function NewTripScreen() {
           </Typography>
         </View>
 
-        {/* SECTION 1: TEMPLATE PERJALANAN INSTAN */}
+        {/* SECTION 1: TEMPLATE PERJALANAN INSTAN (DEFAULT MINIMIZED) */}
         <View style={styles.sectionWrap}>
-          <Typography variant="label" color={themeColors.brand.navy} style={styles.sectionTitle}>
-            {t.newTrip.step1Title}
-          </Typography>
+          <Pressable
+            style={[
+              styles.templateToggleHeader,
+              { backgroundColor: themeColors.surface.card, borderColor: themeColors.border.default },
+            ]}
+            onPress={() => setIsTemplateExpanded((prev) => !prev)}
+          >
+            <View style={styles.templateHeaderLeft}>
+              <View style={[styles.templateIconCircle, { backgroundColor: isDarkMode ? '#1E293B' : '#FFF0EE' }]}>
+                <Ionicons name="sparkles" size={16} color={themeColors.brand.coral} />
+              </View>
+              <View style={{ flex: 1, marginLeft: spacing[2] }}>
+                <Typography variant="label" color={themeColors.brand.navy} style={{ fontWeight: '700' }}>
+                  {t.newTrip.step1Title}
+                </Typography>
+                {!isTemplateExpanded && selectedPreset && (
+                  <Typography variant="caption" color={themeColors.brand.coral} style={{ marginTop: 2, fontWeight: '600' }}>
+                    {format(t.newTrip.activeTemplateNotice, { name: selectedPreset.title, duration: `${selectedPreset.durationDays}D` })}
+                  </Typography>
+                )}
+              </View>
+            </View>
+            <View style={styles.templateHeaderRight}>
+              <Typography variant="caption" color={themeColors.brand.coral} style={{ fontWeight: '700', marginRight: 4 }}>
+                {isTemplateExpanded ? t.newTrip.hideTemplates : t.newTrip.showTemplates}
+              </Typography>
+              <Ionicons
+                name={isTemplateExpanded ? 'chevron-up' : 'chevron-down'}
+                size={18}
+                color={themeColors.brand.coral}
+              />
+            </View>
+          </Pressable>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.presetsList}>
-            {presets.map((preset) => {
-              const isSelected = selectedPreset?.id === preset.id;
-              return (
-                <Pressable
-                  key={preset.id}
-                  onPress={() => applyPreset(preset)}
-                  style={[
-                    styles.presetCard,
-                    {
-                      backgroundColor: themeColors.surface.card,
-                      borderColor: isSelected ? themeColors.brand.coral : themeColors.border.default,
-                    },
-                    isSelected && {
-                      backgroundColor: isDarkMode ? 'rgba(245, 107, 95, 0.15)' : '#FFF9F8',
-                    },
-                  ]}
-                >
-                  <View style={styles.presetTop}>
-                    <Ionicons
-                      name={preset.icon as any}
-                      size={20}
-                      color={isSelected ? themeColors.brand.coral : themeColors.brand.blue}
-                    />
-                    <Badge
-                      label={preset.badge}
-                      variant={isSelected ? 'accent' : 'neutral'}
-                      size="sm"
-                    />
-                  </View>
-                  <Typography
-                    variant="h3"
-                    color={themeColors.text.primary}
-                    style={styles.presetTitle}
-                    numberOfLines={1}
+          {/* Preset Cards carousel when expanded */}
+          {isTemplateExpanded && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.presetsList}>
+              {presets.map((preset) => {
+                const isSelected = selectedPreset?.id === preset.id;
+                return (
+                  <Pressable
+                    key={preset.id}
+                    onPress={() => applyPreset(preset)}
+                    style={[
+                      styles.presetCard,
+                      {
+                        backgroundColor: themeColors.surface.card,
+                        borderColor: isSelected ? themeColors.brand.coral : themeColors.border.default,
+                      },
+                      isSelected && {
+                        backgroundColor: isDarkMode ? 'rgba(245, 107, 95, 0.15)' : '#FFF9F8',
+                      },
+                    ]}
                   >
-                    {preset.title}
-                  </Typography>
-                  <Typography variant="caption" color={themeColors.text.secondary} numberOfLines={2}>
-                    {preset.tagline}
-                  </Typography>
-
-                  <View style={[styles.presetFooter, { borderTopColor: themeColors.border.muted }]}>
-                    <Ionicons name="location-outline" size={12} color={themeColors.text.muted} />
-                    <Typography variant="caption" color={themeColors.text.muted} style={styles.presetDestText}>
-                      {preset.destination}
+                    <View style={styles.presetTop}>
+                      <Ionicons
+                        name={preset.icon as any}
+                        size={20}
+                        color={isSelected ? themeColors.brand.coral : themeColors.brand.blue}
+                      />
+                      <Badge
+                        label={preset.badge}
+                        variant={isSelected ? 'accent' : 'neutral'}
+                        size="sm"
+                      />
+                    </View>
+                    <Typography
+                      variant="h3"
+                      color={themeColors.text.primary}
+                      style={styles.presetTitle}
+                      numberOfLines={1}
+                    >
+                      {preset.title}
                     </Typography>
-                  </View>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
+                    <Typography variant="caption" color={themeColors.text.secondary} numberOfLines={2}>
+                      {preset.tagline}
+                    </Typography>
+
+                    <View style={[styles.presetFooter, { borderTopColor: themeColors.border.muted }]}>
+                      <Ionicons name="location-outline" size={12} color={themeColors.text.muted} />
+                      <Typography variant="caption" color={themeColors.text.muted} style={styles.presetDestText}>
+                        {preset.destination}
+                      </Typography>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          )}
         </View>
 
         {/* SECTION 2: DETAIL PERJALANAN */}
@@ -212,18 +270,61 @@ export default function NewTripScreen() {
             onChangeText={setDestination}
           />
 
-          {/* Quick Date Shortcuts */}
+          {/* DEPARTURE DATE (CAN BACKDATE) */}
           <Typography variant="label" color={themeColors.text.primary} style={styles.fieldLabel}>
-            {t.newTrip.dateLabel}
+            {t.newTrip.departureDateLabel}
           </Typography>
+          <Pressable
+            style={[styles.dateInputSelector, { backgroundColor: themeColors.surface.muted, borderColor: themeColors.border.default }]}
+            onPress={() => setActivePicker('departure')}
+          >
+            <View style={styles.dateSelectorContent}>
+              <Ionicons name="calendar" size={18} color={themeColors.brand.coral} />
+              <Typography variant="body" color={themeColors.brand.navy} style={{ fontWeight: '700', marginLeft: 8 }}>
+                {startDate}
+              </Typography>
+              {isBackdate && (
+                <View style={styles.backdateInlineBadge}>
+                  <Typography variant="caption" color="#B45309" style={{ fontSize: 10, fontWeight: '700' }}>
+                    Backdate
+                  </Typography>
+                </View>
+              )}
+            </View>
+            <View style={styles.changeDatePill}>
+              <Typography variant="caption" color={themeColors.brand.coral} style={{ fontWeight: '700' }}>
+                {language === 'en' ? 'Pick Date' : 'Pilih'}
+              </Typography>
+              <Ionicons name="chevron-forward" size={14} color={themeColors.brand.coral} style={{ marginLeft: 2 }} />
+            </View>
+          </Pressable>
+
+          {/* Quick Shortcuts for Departure Date */}
           <View style={styles.dateShortcutsRow}>
+            <Pressable
+              style={[
+                styles.dateShortcutPill,
+                { backgroundColor: themeColors.surface.muted, borderColor: themeColors.border.default },
+                startDate === formatDateYmd(yesterday) && { backgroundColor: themeColors.brand.navy, borderColor: themeColors.brand.navy },
+              ]}
+              onPress={() => handleStartDateSelect(formatDateYmd(yesterday))}
+            >
+              <Typography
+                variant="caption"
+                color={startDate === formatDateYmd(yesterday) ? '#FFFFFF' : themeColors.text.secondary}
+                style={styles.pillText}
+              >
+                {t.newTrip.yesterday}
+              </Typography>
+            </Pressable>
+
             <Pressable
               style={[
                 styles.dateShortcutPill,
                 { backgroundColor: themeColors.surface.muted, borderColor: themeColors.border.default },
                 startDate === formatDateYmd(now) && { backgroundColor: themeColors.brand.navy, borderColor: themeColors.brand.navy },
               ]}
-              onPress={() => handleStartDateSelect(now)}
+              onPress={() => handleStartDateSelect(formatDateYmd(now))}
             >
               <Typography
                 variant="caption"
@@ -240,7 +341,7 @@ export default function NewTripScreen() {
                 { backgroundColor: themeColors.surface.muted, borderColor: themeColors.border.default },
                 startDate === formatDateYmd(tomorrow) && { backgroundColor: themeColors.brand.navy, borderColor: themeColors.brand.navy },
               ]}
-              onPress={() => handleStartDateSelect(tomorrow)}
+              onPress={() => handleStartDateSelect(formatDateYmd(tomorrow))}
             >
               <Typography
                 variant="caption"
@@ -257,7 +358,7 @@ export default function NewTripScreen() {
                 { backgroundColor: themeColors.surface.muted, borderColor: themeColors.border.default },
                 startDate === formatDateYmd(nextWeekend) && { backgroundColor: themeColors.brand.navy, borderColor: themeColors.brand.navy },
               ]}
-              onPress={() => handleStartDateSelect(nextWeekend)}
+              onPress={() => handleStartDateSelect(formatDateYmd(nextWeekend))}
             >
               <Typography
                 variant="caption"
@@ -269,49 +370,142 @@ export default function NewTripScreen() {
             </Pressable>
           </View>
 
-          {/* Duration Selector */}
-          <Typography variant="label" color={themeColors.text.primary} style={styles.fieldLabel}>
-            {t.newTrip.durationLabel}
+          {/* END DATE */}
+          <Typography variant="label" color={themeColors.text.primary} style={[styles.fieldLabel, { marginTop: spacing[3] }]}>
+            {t.newTrip.endDateLabel}
           </Typography>
-          <View style={styles.durationPillsRow}>
-            {[
-              { days: 1, label: t.newTrip.duration1D },
-              { days: 2, label: '2D 1N' },
-              { days: 3, label: '3D 2N' },
-              { days: 4, label: '4D 3N' },
-              { days: 5, label: '5D 4N' },
-            ].map((dur) => (
-              <Pressable
-                key={dur.days}
-                style={[
-                  styles.durPill,
-                  { backgroundColor: themeColors.surface.muted, borderColor: themeColors.border.default },
-                  durationDays === dur.days && { backgroundColor: themeColors.brand.navy, borderColor: themeColors.brand.navy },
-                ]}
-                onPress={() => setDurationDays(dur.days)}
+          <Pressable
+            style={[styles.dateInputSelector, { backgroundColor: themeColors.surface.muted, borderColor: themeColors.border.default }]}
+            onPress={() => setActivePicker('end')}
+          >
+            <View style={styles.dateSelectorContent}>
+              <Ionicons name="calendar-outline" size={18} color={themeColors.brand.blue} />
+              <Typography variant="body" color={themeColors.brand.navy} style={{ fontWeight: '700', marginLeft: 8 }}>
+                {endDate}
+              </Typography>
+            </View>
+            <View style={styles.changeDatePill}>
+              <Typography variant="caption" color={themeColors.brand.coral} style={{ fontWeight: '700' }}>
+                {language === 'en' ? 'Pick Date' : 'Pilih'}
+              </Typography>
+              <Ionicons name="chevron-forward" size={14} color={themeColors.brand.coral} style={{ marginLeft: 2 }} />
+            </View>
+          </Pressable>
+
+          {/* Quick Shortcuts for End Date */}
+          <View style={styles.dateShortcutsRow}>
+            <Pressable
+              style={[
+                styles.dateShortcutPill,
+                { backgroundColor: themeColors.surface.muted, borderColor: themeColors.border.default },
+                endDate === startDate && { backgroundColor: themeColors.brand.navy, borderColor: themeColors.brand.navy },
+              ]}
+              onPress={() => handleAddDaysToEnd(0)}
+            >
+              <Typography
+                variant="caption"
+                color={endDate === startDate ? '#FFFFFF' : themeColors.text.secondary}
+                style={styles.pillText}
               >
-                <Typography
-                  variant="caption"
-                  color={durationDays === dur.days ? '#FFFFFF' : themeColors.brand.navy}
-                  style={styles.pillText}
-                >
-                  {dur.label}
-                </Typography>
-              </Pressable>
-            ))}
+                {t.newTrip.sameDay}
+              </Typography>
+            </Pressable>
+
+            <Pressable
+              style={[
+                styles.dateShortcutPill,
+                { backgroundColor: themeColors.surface.muted, borderColor: themeColors.border.default },
+                endDate === computeEndDate(startDate, 2) && { backgroundColor: themeColors.brand.navy, borderColor: themeColors.brand.navy },
+              ]}
+              onPress={() => handleAddDaysToEnd(1)}
+            >
+              <Typography
+                variant="caption"
+                color={endDate === computeEndDate(startDate, 2) ? '#FFFFFF' : themeColors.text.secondary}
+                style={styles.pillText}
+              >
+                {t.newTrip.plus1Day}
+              </Typography>
+            </Pressable>
+
+            <Pressable
+              style={[
+                styles.dateShortcutPill,
+                { backgroundColor: themeColors.surface.muted, borderColor: themeColors.border.default },
+                endDate === computeEndDate(startDate, 3) && { backgroundColor: themeColors.brand.navy, borderColor: themeColors.brand.navy },
+              ]}
+              onPress={() => handleAddDaysToEnd(2)}
+            >
+              <Typography
+                variant="caption"
+                color={endDate === computeEndDate(startDate, 3) ? '#FFFFFF' : themeColors.text.secondary}
+                style={styles.pillText}
+              >
+                {t.newTrip.plus2Days}
+              </Typography>
+            </Pressable>
+
+            <Pressable
+              style={[
+                styles.dateShortcutPill,
+                { backgroundColor: themeColors.surface.muted, borderColor: themeColors.border.default },
+                endDate === computeEndDate(startDate, 4) && { backgroundColor: themeColors.brand.navy, borderColor: themeColors.brand.navy },
+              ]}
+              onPress={() => handleAddDaysToEnd(3)}
+            >
+              <Typography
+                variant="caption"
+                color={endDate === computeEndDate(startDate, 4) ? '#FFFFFF' : themeColors.text.secondary}
+                style={styles.pillText}
+              >
+                {t.newTrip.plus3Days}
+              </Typography>
+            </Pressable>
           </View>
 
-          {/* Computed Duration Banner */}
-          <View style={[styles.durationBanner, { backgroundColor: isDarkMode ? '#082F49' : '#F0F9FF', borderColor: isDarkMode ? '#0369A1' : '#BAE6FD' }]}>
-            <Ionicons name="calendar-outline" size={18} color={themeColors.brand.blue} />
-            <View style={styles.bannerInfo}>
-              <Typography variant="label" color={themeColors.brand.navy}>
-                {durationLabel}
-              </Typography>
-              <Typography variant="caption" color={themeColors.text.secondary}>
+          {/* TRIP DURATION (VIEW ONLY RESPONSE FROM START DATE AND BACKDATE) */}
+          <Typography variant="label" color={themeColors.text.primary} style={[styles.fieldLabel, { marginTop: spacing[3] }]}>
+            {t.newTrip.durationViewOnlyLabel}
+          </Typography>
+
+          <View
+            style={[
+              styles.viewOnlyDurationCard,
+              {
+                backgroundColor: isDarkMode ? '#0F2942' : '#F0F9FF',
+                borderColor: isDarkMode ? '#0369A1' : '#BAE6FD',
+              },
+            ]}
+          >
+            <View style={styles.viewOnlyTopRow}>
+              <View style={styles.viewOnlyDurationLeft}>
+                <Ionicons name="time" size={20} color={themeColors.brand.coral} />
+                <Typography variant="h3" color={themeColors.brand.navy} style={{ fontWeight: '800', marginLeft: 8 }}>
+                  {durationLabel}
+                </Typography>
+              </View>
+              <Badge
+                label={`${durationDays}D ${Math.max(0, durationDays - 1)}N`}
+                variant="primary"
+                size="sm"
+              />
+            </View>
+
+            <View style={styles.viewOnlyDetailsRow}>
+              <Ionicons name="calendar-outline" size={14} color={themeColors.text.muted} />
+              <Typography variant="caption" color={themeColors.text.secondary} style={{ marginLeft: 5 }}>
                 {startDate} {t.newTrip.to} {endDate}
               </Typography>
             </View>
+
+            {isBackdate && (
+              <View style={styles.backdateNoticeBox}>
+                <Ionicons name="time-outline" size={13} color={themeColors.brand.navy} />
+                <Typography variant="caption" color={themeColors.brand.navy} style={{ marginLeft: 4, fontWeight: '700' }}>
+                  {t.newTrip.backdateBadge}
+                </Typography>
+              </View>
+            )}
           </View>
 
           {/* Switch: Pre-populate starter pack */}
@@ -343,6 +537,26 @@ export default function NewTripScreen() {
           />
         </Card>
       </ScrollView>
+
+      {/* Date Picker Modals */}
+      <DatePickerModal
+        visible={activePicker === 'departure'}
+        value={startDate}
+        title={t.newTrip.calendarPickerTitleDep}
+        language={language}
+        onConfirm={handleStartDateSelect}
+        onClose={() => setActivePicker(null)}
+      />
+
+      <DatePickerModal
+        visible={activePicker === 'end'}
+        value={endDate}
+        title={t.newTrip.calendarPickerTitleEnd}
+        minDate={startDate}
+        language={language}
+        onConfirm={handleEndDateSelect}
+        onClose={() => setActivePicker(null)}
+      />
     </ScreenContainer>
   );
 }
@@ -372,6 +586,31 @@ const styles = StyleSheet.create({
   sectionWrap: {
     marginBottom: spacing[4],
   },
+  templateToggleHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: spacing[3],
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    marginBottom: spacing[2],
+  },
+  templateHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  templateIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  templateHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   sectionTitle: {
     fontWeight: '800',
     marginBottom: spacing[2],
@@ -379,6 +618,7 @@ const styles = StyleSheet.create({
   presetsList: {
     gap: spacing[3],
     paddingRight: spacing[2],
+    marginTop: spacing[1],
   },
   presetCard: {
     width: 220,
@@ -440,40 +680,65 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brand.navy,
     borderColor: colors.brand.navy,
   },
-  durationPillsRow: {
-    flexDirection: 'row',
-    gap: spacing[2],
-    marginBottom: spacing[4],
-  },
-  durPill: {
-    flex: 1,
-    backgroundColor: colors.surface.muted,
-    paddingVertical: 8,
-    borderRadius: radius.md,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border.default,
-  },
-  durPillActive: {
-    backgroundColor: colors.brand.navy,
-    borderColor: colors.brand.navy,
-  },
   pillText: {
     fontWeight: '700',
   },
-  durationBanner: {
+  dateInputSelector: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing[3],
+    paddingVertical: 10,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    marginBottom: spacing[2],
+  },
+  dateSelectorContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F0F9FF',
+  },
+  backdateInlineBadge: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: radius.full,
+    marginLeft: 8,
+  },
+  changeDatePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radius.full,
+    backgroundColor: '#FFF0EE',
+  },
+  viewOnlyDurationCard: {
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: '#BAE6FD',
     padding: spacing[3],
-    borderRadius: radius.md,
     marginBottom: spacing[4],
   },
-  bannerInfo: {
-    marginLeft: 10,
-    flex: 1,
+  viewOnlyTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  viewOnlyDurationLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  viewOnlyDetailsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  backdateNoticeBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: spacing[2],
+    paddingTop: spacing[2],
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0, 0, 0, 0.06)',
   },
   switchRow: {
     flexDirection: 'row',

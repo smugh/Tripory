@@ -108,6 +108,13 @@ export default function RootLayout() {
             presentation: 'modal',
           }}
         />
+        <Stack.Screen
+          name="destination/[id]"
+          options={{
+            title: t.destDetail.screenTitle,
+            headerBackTitle: t.trip.back,
+          }}
+        />
       </Stack>
 
       {/* Branded Splash Screen Overlay with Primary Logo Centered */}
@@ -117,7 +124,7 @@ export default function RootLayout() {
             StyleSheet.absoluteFill,
             styles.splashContainer,
             {
-              backgroundColor: isDarkMode ? '#050E24' : '#FFFFFF',
+              backgroundColor: isDarkMode ? '#111C30' : '#FFFFFF',
               opacity: splashFadeAnim,
             },
           ]}

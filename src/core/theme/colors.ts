@@ -27,12 +27,12 @@ export const palette = {
   gray800: '#1E293B',
   gray900: '#0F172A',
 
-  // Dark Mode Nocturnal Palette
-  darkBg: '#050E24',
-  darkCard: '#0A1A3D',
-  darkCardElevated: '#0F2554',
-  darkMuted: '#132857',
-  darkBorder: '#183266',
+  // Dark Mode Nocturnal Palette - Soft Traveler's Navy (Refined, comfortable contrast)
+  darkBg: '#111C30',
+  darkCard: '#1B2A47',
+  darkCardElevated: '#24375D',
+  darkMuted: '#1E2E4E',
+  darkBorder: '#283C64',
 
   // Semantics
   success: '#16A34A',
@@ -108,8 +108,8 @@ export const darkColors = {
   },
   border: {
     default: palette.darkBorder,
-    muted: '#132857',
-    strong: '#2A437E',
+    muted: palette.darkMuted,
+    strong: '#364F7E',
     focus: '#38BDF8',
     error: palette.error,
   },

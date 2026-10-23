@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Pressable, Image, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, Pressable, Image, ActivityIndicator, Modal } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { colors, spacing, radius, useThemeColors } from '@/core/theme';
 import { Typography, Card, Badge, Button, Input, ScreenContainer, ProgressBar } from '@/components/ui';
 import { TripLifecycleRoadmap, DestinationRoadmap } from '@/components/roadmap';
@@ -41,12 +42,16 @@ export default function TripDetailScreen() {
   // Active workspace segment tab
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('roadmap');
   const [packingFilter, setPackingFilter] = useState<PackingFilter>('all');
+  const [packSubTab, setPackSubTab] = useState<'starter' | 'destinations'>('starter');
+  const [itemToShift, setItemToShift] = useState<TripItemRecord | null>(null);
+  const [targetDestinationForNewItem, setTargetDestinationForNewItem] = useState<string | null>(null);
   const [visitedStopIds, setVisitedStopIds] = useState<string[]>([]);
 
   // Inline forms
   const [newDestName, setNewDestName] = useState('');
   const [newDestActivity, setNewDestActivity] = useState('');
   const [newDestTime, setNewDestTime] = useState('09:00');
+  const [newDestImageUri, setNewDestImageUri] = useState<string | null>(null);
   const [isAddingDest, setIsAddingDest] = useState(false);
 
   const [newItemName, setNewItemName] = useState('');
@@ -143,9 +148,13 @@ export default function TripDetailScreen() {
         locationLabel: null,
         latitude: null,
         longitude: null,
+        imageUri: newDestImageUri,
+        notes: null,
+        todos: null,
       });
       setNewDestName('');
       setNewDestActivity('');
+      setNewDestImageUri(null);
       setIsAddingDest(false);
       loadTripData();
     } catch {
@@ -161,7 +170,7 @@ export default function TripDetailScreen() {
         itemId: null,
         customName: newItemName.trim(),
         category: 'Gear & Activities',
-        plannedDestinationId: destinations[0]?.id ?? null,
+        plannedDestinationId: targetDestinationForNewItem,
         state: 'planned',
         priority: 'must_have',
         quantity: 1,
@@ -171,6 +180,26 @@ export default function TripDetailScreen() {
       loadTripData();
     } catch {
       Alert.alert(language === 'en' ? 'Error' : 'Gagal', t.trip.alertItemAddError);
+    }
+  };
+
+  const handleUpdateItemState = async (item: TripItemRecord, state: TripItemRecord['state']) => {
+    try {
+      await packingRepository.updateItemState(item.id, state);
+      loadTripData();
+    } catch {
+      Alert.alert(language === 'en' ? 'Error' : 'Gagal', t.trip.alertItemUpdateError);
+    }
+  };
+
+  const handleShiftItem = async (targetDestId: string | null) => {
+    if (!itemToShift) return;
+    try {
+      await packingRepository.updateItemDestination(itemToShift.id, targetDestId);
+      setItemToShift(null);
+      loadTripData();
+    } catch {
+      Alert.alert(language === 'en' ? 'Error' : 'Gagal', 'Failed to shift destination.');
     }
   };
 
@@ -642,6 +671,40 @@ export default function TripDetailScreen() {
                   onChangeText={setNewDestTime}
                 />
 
+                {/* Optional Location Photo when creating stop */}
+                <Pressable
+                  style={[
+                    styles.destPhotoPickBtn,
+                    { backgroundColor: colors.surface.page, borderColor: colors.border.default },
+                  ]}
+                  onPress={async () => {
+                    const result = await ImagePicker.launchImageLibraryAsync({
+                      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                      quality: 0.85,
+                      allowsEditing: true,
+                      aspect: [16, 9],
+                    });
+                    if (!result.canceled && result.assets && result.assets[0]) {
+                      setNewDestImageUri(result.assets[0].uri);
+                    }
+                  }}
+                >
+                  <Ionicons
+                    name={newDestImageUri ? 'checkmark-circle' : 'camera-outline'}
+                    size={18}
+                    color={newDestImageUri ? colors.status.success : colors.brand.blue}
+                  />
+                  <Typography
+                    variant="caption"
+                    color={newDestImageUri ? colors.status.success : colors.brand.blue}
+                    style={{ marginLeft: 6, fontWeight: '700' }}
+                  >
+                    {newDestImageUri
+                      ? (language === 'en' ? 'Photo Attached ✓' : 'Foto Lokasi Terlampir ✓')
+                      : (language === 'en' ? '+ Attach Location Photo' : '+ Lampirkan Foto Lokasi')}
+                  </Typography>
+                </Pressable>
+
                 <View style={styles.formButtons}>
                   <Button
                     label={t.trip.cancel}
@@ -716,29 +779,117 @@ export default function TripDetailScreen() {
               ) : null}
             </Card>
 
-            {/* ONE-TAP QUICK STARTER PACKAGES */}
-            <View style={styles.quickBundlesSection}>
-              <Typography variant="label" color={colors.brand.navy} style={styles.bundleSectionTitle}>
-                {t.trip.quickBundlesTitle}
-              </Typography>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.bundlesRow}>
-                {quickBundles.map((bundle) => (
-                  <Pressable
-                    key={bundle.title}
-                    style={styles.bundleCard}
-                    onPress={() => handleAddBundle(bundle)}
-                  >
-                    <Ionicons name={bundle.icon as any} size={18} color={colors.brand.coral} />
-                    <Typography variant="caption" color={colors.brand.navy} style={styles.bundleCardTitle}>
-                      + {bundle.title}
-                    </Typography>
-                    <Typography variant="caption" color={colors.text.muted} style={styles.bundleCountText}>
-                      ({bundle.items.length} {language === 'en' ? (bundle.items.length === 1 ? 'item' : 'items') : 'item'})
-                    </Typography>
-                  </Pressable>
-                ))}
-              </ScrollView>
+            {/* 2 OPTIONS SUB-TABS: STARTER PACK VS DESTINATION PACK */}
+            <View style={styles.packSubTabContainer}>
+              <Pressable
+                style={[
+                  styles.packSubTabBtn,
+                  packSubTab === 'starter' && { backgroundColor: colors.brand.coral },
+                ]}
+                onPress={() => setPackSubTab('starter')}
+              >
+                <Ionicons
+                  name="briefcase"
+                  size={15}
+                  color={packSubTab === 'starter' ? '#FFFFFF' : colors.text.secondary}
+                />
+                <Typography
+                  variant="label"
+                  color={packSubTab === 'starter' ? '#FFFFFF' : colors.text.secondary}
+                  style={styles.packSubTabText}
+                >
+                  {t.packWorkspace.tabStarterPack} (
+                  {items.filter((i) => !i.plannedDestinationId).length})
+                </Typography>
+              </Pressable>
+
+              <Pressable
+                style={[
+                  styles.packSubTabBtn,
+                  packSubTab === 'destinations' && { backgroundColor: colors.brand.coral },
+                ]}
+                onPress={() => setPackSubTab('destinations')}
+              >
+                <Ionicons
+                  name="location"
+                  size={15}
+                  color={packSubTab === 'destinations' ? '#FFFFFF' : colors.text.secondary}
+                />
+                <Typography
+                  variant="label"
+                  color={packSubTab === 'destinations' ? '#FFFFFF' : colors.text.secondary}
+                  style={styles.packSubTabText}
+                >
+                  {t.packWorkspace.tabDestinationPack} (
+                  {items.filter((i) => !!i.plannedDestinationId).length})
+                </Typography>
+              </Pressable>
             </View>
+
+            {/* Mode Guidance Alert: Planning vs In-Trip */}
+            <View
+              style={[
+                styles.modeGuidanceBanner,
+                {
+                  backgroundColor:
+                    trip?.status === 'ongoing'
+                      ? 'rgba(22, 163, 74, 0.1)'
+                      : colors.surface.card,
+                  borderColor:
+                    trip?.status === 'ongoing'
+                      ? colors.status.success
+                      : colors.border.default,
+                },
+              ]}
+            >
+              <Ionicons
+                name={trip?.status === 'ongoing' ? 'navigate' : 'clipboard-outline'}
+                size={18}
+                color={trip?.status === 'ongoing' ? colors.status.success : colors.brand.blue}
+              />
+              <View style={{ flex: 1, marginLeft: 8 }}>
+                <Typography
+                  variant="label"
+                  color={trip?.status === 'ongoing' ? colors.status.success : colors.brand.navy}
+                  style={{ fontWeight: '700' }}
+                >
+                  {trip?.status === 'ongoing'
+                    ? t.packWorkspace.modeTravelTitle
+                    : t.packWorkspace.modePlanningTitle}
+                </Typography>
+                <Typography variant="caption" color={colors.text.secondary} style={{ marginTop: 2 }}>
+                  {trip?.status === 'ongoing'
+                    ? t.packWorkspace.modeTravelDesc
+                    : t.packWorkspace.modePlanningDesc}
+                </Typography>
+              </View>
+            </View>
+
+            {/* ONE-TAP QUICK STARTER PACKAGES */}
+            {packSubTab === 'starter' && (
+              <View style={styles.quickBundlesSection}>
+                <Typography variant="label" color={colors.brand.navy} style={styles.bundleSectionTitle}>
+                  {t.trip.quickBundlesTitle}
+                </Typography>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.bundlesRow}>
+                  {quickBundles.map((bundle) => (
+                    <Pressable
+                      key={bundle.title}
+                      style={styles.bundleCard}
+                      onPress={() => handleAddBundle(bundle)}
+                    >
+                      <Ionicons name={bundle.icon as any} size={18} color={colors.brand.coral} />
+                      <Typography variant="caption" color={colors.brand.navy} style={styles.bundleCardTitle}>
+                        + {bundle.title}
+                      </Typography>
+                      <Typography variant="caption" color={colors.text.muted} style={styles.bundleCountText}>
+                        ({bundle.items.length} {language === 'en' ? (bundle.items.length === 1 ? 'item' : 'items') : 'item'})
+                      </Typography>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
 
             {/* Filter Chips */}
             <View style={styles.filterChipsRow}>
@@ -768,82 +919,230 @@ export default function TripDetailScreen() {
               ))}
             </View>
 
-            {/* Items Checklist */}
-            <Card style={styles.itemsListCard}>
-              {filteredItems.length === 0 ? (
-                <View style={styles.emptyItemsBox}>
-                  <Typography variant="caption" color={colors.text.muted}>
-                    {t.trip.emptyItemsDesc}
-                  </Typography>
+            {/* SUB-VIEW 1: STARTER PACK */}
+            {packSubTab === 'starter' ? (
+              <Card style={styles.itemsListCard}>
+                <View style={styles.subTabHeaderRow}>
+                  <View>
+                    <Typography variant="h3" color={colors.brand.navy}>
+                      {t.packWorkspace.tabStarterPack}
+                    </Typography>
+                    <Typography variant="caption" color={colors.text.muted}>
+                      {t.packWorkspace.starterSubtitle}
+                    </Typography>
+                  </View>
+                  <Badge
+                    label={`${filteredItems.filter((i) => !i.plannedDestinationId).length} Items`}
+                    variant="neutral"
+                    size="sm"
+                  />
                 </View>
-              ) : (
-                filteredItems.map((item) => {
-                  const isPacked = item.state === 'packed';
-                  return (
-                    <Pressable
-                      key={item.id}
-                      onPress={() => handleTogglePack(item)}
-                      style={styles.checkItemRow}
-                    >
-                      <View style={[styles.checkbox, isPacked && styles.checkboxActive]}>
-                        {isPacked ? (
-                          <Ionicons name="checkmark" size={14} color="#FFFFFF" />
-                        ) : null}
-                      </View>
 
-                      <View style={styles.itemTextWrap}>
-                        <Typography
-                          variant="body"
-                          color={isPacked ? colors.text.muted : colors.brand.navy}
-                          style={[styles.itemName, isPacked && styles.strikeText]}
-                        >
-                          {item.customName}
-                        </Typography>
-                        <Typography variant="caption" color={colors.text.muted}>
-                          {item.category} • {language === 'en' ? 'Qty:' : 'Jumlah:'} {item.quantity}
-                        </Typography>
-                      </View>
+                {filteredItems.filter((i) => !i.plannedDestinationId).length === 0 ? (
+                  <View style={styles.emptyItemsBox}>
+                    <Typography variant="caption" color={colors.text.muted}>
+                      {t.trip.emptyItemsDesc}
+                    </Typography>
+                  </View>
+                ) : (
+                  filteredItems
+                    .filter((i) => !i.plannedDestinationId)
+                    .map((item) => {
+                      const isPacked = item.state === 'packed';
+                      const isUsed = item.state === 'used';
+                      return (
+                        <View key={item.id} style={styles.checkItemRow}>
+                          <Pressable
+                            onPress={() => handleTogglePack(item)}
+                            style={[styles.checkbox, isPacked && styles.checkboxActive]}
+                          >
+                            {isPacked ? <Ionicons name="checkmark" size={14} color="#FFFFFF" /> : null}
+                          </Pressable>
 
-                      <Badge
-                        label={
-                          item.priority === 'must_have'
-                            ? t.trip.priorityMustHave
-                            : item.priority === 'conditional'
-                            ? t.trip.priorityConditional
-                            : t.trip.priorityOptional
-                        }
-                        variant={
-                          item.priority === 'must_have'
-                            ? 'error'
-                            : item.priority === 'conditional'
-                            ? 'warning'
-                            : 'neutral'
-                        }
-                        size="sm"
-                      />
-                    </Pressable>
-                  );
-                })
-              )}
+                          <View style={styles.itemTextWrap}>
+                            <Typography
+                              variant="body"
+                              color={isPacked ? colors.text.muted : colors.brand.navy}
+                              style={[styles.itemName, isPacked && styles.strikeText]}
+                            >
+                              {item.customName}
+                            </Typography>
+                            <Typography variant="caption" color={colors.text.muted}>
+                              {item.category} • {language === 'en' ? 'Qty:' : 'Jumlah:'} {item.quantity}
+                              {isUsed && (
+                                <Typography variant="caption" color={colors.status.success}>
+                                  {' '}• {t.packWorkspace.statusUsed}
+                                </Typography>
+                              )}
+                            </Typography>
+                          </View>
 
-              {/* Add item inline */}
-              <View style={styles.addItemBox}>
-                <Input
-                  label={t.trip.manualAddTitle}
-                  placeholder={t.trip.manualAddPlaceholder}
-                  value={newItemName}
-                  onChangeText={setNewItemName}
-                />
+                          <View style={styles.itemActionsGroup}>
+                            {/* Action: Mark Used */}
+                            {isPacked && !isUsed && (
+                              <Pressable
+                                style={[styles.markUsedBtn, { backgroundColor: colors.status.successLight }]}
+                                onPress={() => handleUpdateItemState(item, 'used')}
+                              >
+                                <Typography variant="caption" color={colors.status.success} style={{ fontWeight: '700' }}>
+                                  {t.packWorkspace.markUsed}
+                                </Typography>
+                              </Pressable>
+                            )}
 
-                <Button
-                  label={t.trip.addChecklistBtn}
-                  variant="primary"
-                  size="sm"
-                  onPress={handleAddTripItem}
-                  style={styles.saveItemBtn}
-                />
+                            {/* Action: Shift / Map to Destination */}
+                            <Pressable
+                              style={[styles.shiftBtn, { borderColor: colors.border.default }]}
+                              onPress={() => setItemToShift(item)}
+                            >
+                              <Ionicons name="location-outline" size={13} color={colors.brand.blue} />
+                              <Typography variant="caption" color={colors.brand.blue} style={{ marginLeft: 3, fontWeight: '700' }}>
+                                {language === 'en' ? 'Map Stop' : 'Petakan'}
+                              </Typography>
+                            </Pressable>
+                          </View>
+                        </View>
+                      );
+                    })
+                )}
+
+                {/* Add item inline */}
+                <View style={styles.addItemBox}>
+                  <Input
+                    label={t.trip.manualAddTitle}
+                    placeholder={t.trip.manualAddPlaceholder}
+                    value={newItemName}
+                    onChangeText={setNewItemName}
+                  />
+
+                  <Button
+                    label={t.trip.addChecklistBtn}
+                    variant="primary"
+                    size="sm"
+                    onPress={handleAddTripItem}
+                    style={styles.saveItemBtn}
+                  />
+                </View>
+              </Card>
+            ) : (
+              /* SUB-VIEW 2: DESTINATION PACK (Grouped by Stop) */
+              <View style={styles.destPackList}>
+                {destinations.length === 0 ? (
+                  <Card style={styles.emptyItemsBox}>
+                    <Typography variant="body" color={colors.text.muted}>
+                      {language === 'en'
+                        ? 'No destination stops in roadmap yet. Add stops to start mapping equipment.'
+                        : 'Belum ada destinasi di roadmap. Tambahkan destinasi terlebih dahulu untuk memetakan barang.'}
+                    </Typography>
+                  </Card>
+                ) : (
+                  destinations.map((dest) => {
+                    const destItems = filteredItems.filter((i) => i.plannedDestinationId === dest.id);
+                    return (
+                      <Card key={dest.id} style={styles.destGroupCard}>
+                        {/* Destination Group Header */}
+                        <View style={styles.destGroupHeader}>
+                          <View style={{ flex: 1 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                              <Badge label={`Day ${dest.dayNumber}`} variant="accent" size="sm" />
+                              {dest.plannedTime && (
+                                <Typography variant="caption" color={colors.text.muted} style={{ marginLeft: 6 }}>
+                                  {dest.plannedTime}
+                                </Typography>
+                              )}
+                            </View>
+                            <Typography variant="h3" color={colors.brand.navy} style={{ marginTop: 4 }}>
+                              {dest.name}
+                            </Typography>
+                            {dest.activity && (
+                              <Typography variant="caption" color={colors.text.secondary}>
+                                {dest.activity}
+                              </Typography>
+                            )}
+                          </View>
+
+                          <Pressable
+                            style={[styles.inspectDestBtn, { backgroundColor: colors.surface.muted }]}
+                            onPress={() => router.push(`/destination/${dest.id}` as any)}
+                          >
+                            <Ionicons name="open-outline" size={16} color={colors.brand.blue} />
+                          </Pressable>
+                        </View>
+
+                        {/* Mapped Items for this Stop */}
+                        <View style={styles.destGroupItems}>
+                          {destItems.length === 0 ? (
+                            <Typography variant="caption" color={colors.text.muted} style={{ fontStyle: 'italic', marginVertical: 8 }}>
+                              {language === 'en'
+                                ? 'No items mapped to this stop yet.'
+                                : 'Belum ada barang yang dipetakan ke destinasi ini.'}
+                            </Typography>
+                          ) : (
+                            destItems.map((item) => {
+                              const isPacked = item.state === 'packed';
+                              const isUsed = item.state === 'used';
+                              return (
+                                <View key={item.id} style={styles.checkItemRow}>
+                                  <Pressable
+                                    onPress={() => handleTogglePack(item)}
+                                    style={[styles.checkbox, isPacked && styles.checkboxActive]}
+                                  >
+                                    {isPacked ? <Ionicons name="checkmark" size={14} color="#FFFFFF" /> : null}
+                                  </Pressable>
+
+                                  <View style={styles.itemTextWrap}>
+                                    <Typography
+                                      variant="body"
+                                      color={isPacked ? colors.text.muted : colors.brand.navy}
+                                      style={[styles.itemName, isPacked && styles.strikeText]}
+                                    >
+                                      {item.customName}
+                                    </Typography>
+                                    <Typography variant="caption" color={colors.text.muted}>
+                                      {item.category} • Qty: {item.quantity}
+                                      {isUsed && (
+                                        <Typography variant="caption" color={colors.status.success}>
+                                          {' '}• {t.packWorkspace.statusUsed}
+                                        </Typography>
+                                      )}
+                                    </Typography>
+                                  </View>
+
+                                  <View style={styles.itemActionsGroup}>
+                                    {/* Action: Mark Used */}
+                                    {isPacked && !isUsed && (
+                                      <Pressable
+                                        style={[styles.markUsedBtn, { backgroundColor: colors.status.successLight }]}
+                                        onPress={() => handleUpdateItemState(item, 'used')}
+                                      >
+                                        <Typography variant="caption" color={colors.status.success} style={{ fontWeight: '700' }}>
+                                          {t.packWorkspace.markUsed}
+                                        </Typography>
+                                      </Pressable>
+                                    )}
+
+                                    {/* Action: Shift to Next Stop */}
+                                    <Pressable
+                                      style={[styles.shiftBtn, { borderColor: colors.border.strong }]}
+                                      onPress={() => setItemToShift(item)}
+                                    >
+                                      <Ionicons name="swap-horizontal" size={13} color={colors.text.primary} />
+                                      <Typography variant="caption" color={colors.text.primary} style={{ marginLeft: 3, fontWeight: '700' }}>
+                                        {language === 'en' ? 'Shift' : 'Geser'}
+                                      </Typography>
+                                    </Pressable>
+                                  </View>
+                                </View>
+                              );
+                            })
+                          )}
+                        </View>
+                      </Card>
+                    );
+                  })
+                )}
               </View>
-            </Card>
+            )}
           </View>
         ) : null}
 
@@ -1046,6 +1345,72 @@ export default function TripDetailScreen() {
           </Card>
         ) : null}
       </ScrollView>
+
+      {/* MODAL: SHIFT ITEM TO ANOTHER DESTINATION */}
+      {itemToShift && (
+        <Modal transparent animationType="fade" visible={!!itemToShift}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalCard, { backgroundColor: colors.surface.card }]}>
+              <Typography variant="h3" color={colors.brand.navy}>
+                {t.destDetail.moveModalTitle}
+              </Typography>
+              <Typography variant="body" color={colors.text.secondary} style={{ marginBottom: 12, marginTop: 4 }}>
+                {itemToShift.customName}
+              </Typography>
+
+              <ScrollView style={{ maxHeight: 280 }}>
+                {/* Option 1: Starter Pack */}
+                <Pressable
+                  style={[
+                    styles.destOptionItem,
+                    {
+                      backgroundColor:
+                        itemToShift.plannedDestinationId === null
+                          ? colors.surface.muted
+                          : colors.surface.page,
+                    },
+                  ]}
+                  onPress={() => handleShiftItem(null)}
+                >
+                  <Ionicons name="briefcase-outline" size={18} color={colors.brand.coral} />
+                  <Typography variant="label" color={colors.text.primary} style={{ marginLeft: 8 }}>
+                    {t.destDetail.moveToStarterPack}
+                  </Typography>
+                </Pressable>
+
+                {/* Option 2: Each Destination */}
+                {destinations.map((d) => (
+                  <Pressable
+                    key={d.id}
+                    style={[
+                      styles.destOptionItem,
+                      {
+                        backgroundColor:
+                          itemToShift.plannedDestinationId === d.id
+                            ? colors.surface.muted
+                            : colors.surface.page,
+                      },
+                    ]}
+                    onPress={() => handleShiftItem(d.id)}
+                  >
+                    <Ionicons name="location-outline" size={18} color={colors.brand.blue} />
+                    <Typography variant="label" color={colors.text.primary} style={{ marginLeft: 8 }}>
+                      {t.destDetail.moveToStopPrefix}Day {d.dayNumber} - {d.name}
+                    </Typography>
+                  </Pressable>
+                ))}
+              </ScrollView>
+
+              <Button
+                variant="secondary"
+                label={t.trip.cancel}
+                onPress={() => setItemToShift(null)}
+                style={{ marginTop: 12 }}
+              />
+            </View>
+          </View>
+        </Modal>
+      )}
     </ScreenContainer>
   );
 }
@@ -1478,5 +1843,111 @@ const styles = StyleSheet.create({
   closeDesc: {
     marginBottom: spacing[4],
     lineHeight: 20,
+  },
+  packSubTabContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: spacing[3],
+  },
+  packSubTabBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 9,
+    paddingHorizontal: 8,
+    borderRadius: radius.md,
+    backgroundColor: '#EEF2F6',
+    gap: 6,
+  },
+  packSubTabText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  modeGuidanceBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    marginBottom: spacing[3],
+  },
+  subTabHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing[3],
+  },
+  itemActionsGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  markUsedBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 6,
+  },
+  shiftBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  destPackList: {
+    gap: spacing[3],
+  },
+  destGroupCard: {
+    padding: spacing[4],
+  },
+  destGroupHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEF2F6',
+    paddingBottom: spacing[2],
+    marginBottom: spacing[2],
+  },
+  inspectDestBtn: {
+    padding: 6,
+    borderRadius: radius.sm,
+  },
+  destGroupItems: {
+    gap: 6,
+  },
+  destOptionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 8,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  modalCard: {
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  destPhotoPickBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    marginBottom: spacing[3],
   },
 });

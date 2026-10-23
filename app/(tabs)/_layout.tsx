@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, Pressable } from 'react-native';
+import { View, StyleSheet, Pressable, Image } from 'react-native';
 import { Tabs, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColors } from '@/core/theme';
@@ -101,7 +101,11 @@ export default function TabLayout() {
                 accessibilityLabel="Buat Trip Baru"
                 accessibilityRole="button"
               >
-                <Ionicons name="paper-plane" size={20} color="#FFFFFF" style={styles.planeIcon} />
+                <Image
+                  source={require('@/../assets/images/logo-white.png')}
+                  style={styles.centerLogo}
+                  resizeMode="contain"
+                />
               </Pressable>
               <Typography
                 variant="caption"
@@ -174,9 +178,9 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 3,
   },
-  planeIcon: {
-    marginLeft: -1,
-    marginTop: -1,
+  centerLogo: {
+    width: 20,
+    height: 20,
   },
   centerButtonLabel: {
     fontSize: 10,

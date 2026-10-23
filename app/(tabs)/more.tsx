@@ -228,7 +228,7 @@ export default function SettingsScreen() {
                   {
                     color: themeColors.text.primary,
                     borderColor: themeColors.border.focus,
-                    backgroundColor: isDarkMode ? '#132857' : '#F8FAFC',
+                    backgroundColor: isDarkMode ? themeColors.surface.muted : '#F8FAFC',
                   },
                 ]}
                 placeholder={t.settings.gmailPlaceholder}
@@ -649,7 +649,7 @@ export default function SettingsScreen() {
 
             {/* Cancel Button */}
             <Pressable
-              style={[styles.cancelBtn, { backgroundColor: isDarkMode ? '#132857' : '#F1F5F9' }]}
+              style={[styles.cancelBtn, { backgroundColor: isDarkMode ? themeColors.surface.muted : '#F1F5F9' }]}
               onPress={() => setIsRestoreModalVisible(false)}
             >
               <Typography variant="label" color={themeColors.text.primary}>

@@ -13,6 +13,11 @@ export const destinationRepository = {
       .all();
   },
 
+  async getById(id: string): Promise<DestinationRecord | null> {
+    const res = db.select().from(destinations).where(eq(destinations.id, id)).get();
+    return res || null;
+  },
+
   async create(data: Omit<NewDestinationRecord, 'id' | 'createdAt'>): Promise<DestinationRecord> {
     const now = new Date().toISOString();
     const newRecord: NewDestinationRecord = {
@@ -22,6 +27,10 @@ export const destinationRepository = {
     };
     db.insert(destinations).values(newRecord).run();
     return newRecord as DestinationRecord;
+  },
+
+  async update(id: string, updates: Partial<Omit<NewDestinationRecord, 'id' | 'createdAt'>>): Promise<void> {
+    db.update(destinations).set(updates).where(eq(destinations.id, id)).run();
   },
 
   async delete(id: string): Promise<void> {

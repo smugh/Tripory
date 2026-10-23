@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, StyleSheet, ScrollView, Image, Pressable, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,6 +23,16 @@ export default function HomeScreen() {
 
   const { trips, isLoading, refreshTrips } = useTrips(true);
   const [moments, setMoments] = useState<MomentRecord[]>([]);
+  const [albumSortOrder, setAlbumSortOrder] = useState<'newest' | 'oldest'>('newest');
+  const [albumViewMode, setAlbumViewMode] = useState<'grid' | 'list'>('grid');
+
+  const sortedMoments = useMemo(() => {
+    return [...moments].sort((a, b) => {
+      const timeA = new Date(a.capturedAt).getTime();
+      const timeB = new Date(b.capturedAt).getTime();
+      return albumSortOrder === 'newest' ? timeB - timeA : timeA - timeB;
+    });
+  }, [moments, albumSortOrder]);
 
   // Ambil semua rencana perjalanan yang sedang aktif / dalam proses (bukan arsip selesai)
   const planningTrips = trips.filter((t) => t.status !== 'completed');
@@ -178,8 +188,8 @@ export default function HomeScreen() {
             style={[
               styles.themeToggleBtn,
               {
-                backgroundColor: isDarkMode ? '#132857' : '#F1F5F9',
-                borderColor: isDarkMode ? '#244382' : '#E2E8F0',
+                backgroundColor: isDarkMode ? colors.surface.muted : '#F1F5F9',
+                borderColor: isDarkMode ? colors.border.strong : '#E2E8F0',
               },
             ]}
             accessibilityLabel="Ganti Mode Gelap / Terang"
@@ -327,7 +337,7 @@ export default function HomeScreen() {
                       <Ionicons name="chevron-forward" size={16} color={colors.text.muted} />
                     </View>
 
-                    <View style={[styles.slimTrack, { backgroundColor: isDarkMode ? '#132857' : '#F1F5F9' }]}>
+                    <View style={[styles.slimTrack, { backgroundColor: isDarkMode ? colors.surface.muted : '#F1F5F9' }]}>
                       <View
                         style={[
                           styles.slimFill,
@@ -386,7 +396,7 @@ export default function HomeScreen() {
           </Card>
         )}
 
-        {/* Album Kenangan Perjalanan (Carousel) */}
+        {/* Album Kenangan Perjalanan (List / Grid dengan Filter Terbaru - Lama) */}
         <View style={styles.section}>
           <View style={styles.albumHeader}>
             <View style={styles.albumHeaderLeft}>
@@ -406,52 +416,169 @@ export default function HomeScreen() {
             />
           </View>
 
-          {moments.length > 0 ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.albumCarousel}
-            >
-              {moments.map((m) => (
+          {/* Controls: Filter Sort (Paling Baru - Lama) & View Mode (Grid / List) */}
+          {moments.length > 0 && (
+            <View style={styles.albumControlsRow}>
+              {/* Sort Segment */}
+              <View style={[styles.sortSegmentWrap, { backgroundColor: colors.surface.card, borderColor: colors.border.default }]}>
                 <Pressable
-                  key={m.id}
-                  style={[styles.albumCard, { backgroundColor: colors.surface.card, borderColor: colors.border.default }]}
-                  onPress={() => router.push(`/trip/${m.tripId}`)}
+                  style={[
+                    styles.sortPill,
+                    albumSortOrder === 'newest' && { backgroundColor: colors.brand.blue },
+                  ]}
+                  onPress={() => setAlbumSortOrder('newest')}
                 >
-                  <View style={styles.albumImageWrap}>
-                    {m.photoPath && !m.photoPath.startsWith('local://placeholder') ? (
-                      <Image source={{ uri: m.photoPath }} style={styles.albumImage} />
-                    ) : (
-                      <View style={[styles.albumPlaceholder, { backgroundColor: colors.surface.muted }]}>
-                        <Ionicons name="image-outline" size={36} color={colors.brand.blue} />
-                      </View>
-                    )}
-
-                    {m.locationName ? (
-                      <View style={styles.albumLocationBadge}>
-                        <Ionicons name="location" size={12} color="#FFFFFF" />
-                        <Typography variant="caption" color="#FFFFFF" style={styles.albumLocationText} numberOfLines={1}>
-                          {m.locationName}
-                        </Typography>
-                      </View>
-                    ) : null}
-                  </View>
-
-                  <View style={styles.albumInfo}>
-                    <Typography variant="body" color={colors.brand.navy} style={styles.albumCaption} numberOfLines={1}>
-                      {m.caption || 'Travel Memory'}
-                    </Typography>
-                    <Typography variant="caption" color={colors.text.muted}>
-                      {new Date(m.capturedAt).toLocaleDateString(t.settings.profileName === 'Tripory Explorer' ? 'en-US' : 'id-ID', {
-                        day: 'numeric',
-                        month: 'short',
-                        year: 'numeric',
-                      })}
-                    </Typography>
-                  </View>
+                  <Typography
+                    variant="caption"
+                    color={albumSortOrder === 'newest' ? '#FFFFFF' : colors.text.secondary}
+                    style={styles.controlPillText}
+                  >
+                    {t.home.albumSortNewest}
+                  </Typography>
                 </Pressable>
-              ))}
-            </ScrollView>
+
+                <Pressable
+                  style={[
+                    styles.sortPill,
+                    albumSortOrder === 'oldest' && { backgroundColor: colors.brand.blue },
+                  ]}
+                  onPress={() => setAlbumSortOrder('oldest')}
+                >
+                  <Typography
+                    variant="caption"
+                    color={albumSortOrder === 'oldest' ? '#FFFFFF' : colors.text.secondary}
+                    style={styles.controlPillText}
+                  >
+                    {t.home.albumSortOldest}
+                  </Typography>
+                </Pressable>
+              </View>
+
+              {/* View Mode Toggle */}
+              <View style={[styles.viewModeToggleWrap, { backgroundColor: colors.surface.card, borderColor: colors.border.default }]}>
+                <Pressable
+                  style={[
+                    styles.viewModeBtn,
+                    albumViewMode === 'grid' && { backgroundColor: colors.surface.muted },
+                  ]}
+                  onPress={() => setAlbumViewMode('grid')}
+                >
+                  <Ionicons
+                    name="grid"
+                    size={16}
+                    color={albumViewMode === 'grid' ? colors.brand.coral : colors.text.muted}
+                  />
+                </Pressable>
+
+                <Pressable
+                  style={[
+                    styles.viewModeBtn,
+                    albumViewMode === 'list' && { backgroundColor: colors.surface.muted },
+                  ]}
+                  onPress={() => setAlbumViewMode('list')}
+                >
+                  <Ionicons
+                    name="list"
+                    size={18}
+                    color={albumViewMode === 'list' ? colors.brand.coral : colors.text.muted}
+                  />
+                </Pressable>
+              </View>
+            </View>
+          )}
+
+          {moments.length > 0 ? (
+            albumViewMode === 'grid' ? (
+              <View style={styles.gridContainer}>
+                {sortedMoments.map((m) => (
+                  <Pressable
+                    key={m.id}
+                    style={[
+                      styles.gridCard,
+                      { backgroundColor: colors.surface.card, borderColor: colors.border.default },
+                    ]}
+                    onPress={() => router.push(`/trip/${m.tripId}`)}
+                  >
+                    <View style={styles.gridImageWrap}>
+                      {m.photoPath && !m.photoPath.startsWith('local://placeholder') ? (
+                        <Image source={{ uri: m.photoPath }} style={styles.gridImage} />
+                      ) : (
+                        <View style={[styles.gridPlaceholder, { backgroundColor: colors.surface.muted }]}>
+                          <Ionicons name="image-outline" size={32} color={colors.brand.blue} />
+                        </View>
+                      )}
+
+                      {m.locationName && (
+                        <View style={styles.gridLocationBadge}>
+                          <Ionicons name="location" size={10} color="#FFFFFF" />
+                          <Typography variant="caption" color="#FFFFFF" style={styles.gridLocationText} numberOfLines={1}>
+                            {m.locationName}
+                          </Typography>
+                        </View>
+                      )}
+                    </View>
+
+                    <View style={styles.gridCardBody}>
+                      <Typography variant="label" color={colors.brand.navy} numberOfLines={1} style={styles.gridCaption}>
+                        {m.caption || 'Travel Memory'}
+                      </Typography>
+                      <Typography variant="caption" color={colors.text.muted} style={{ marginTop: 2 }}>
+                        {new Date(m.capturedAt).toLocaleDateString(language === 'en' ? 'en-US' : 'id-ID', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                        })}
+                      </Typography>
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            ) : (
+              <View style={styles.listContainer}>
+                {sortedMoments.map((m) => (
+                  <Pressable
+                    key={m.id}
+                    style={[
+                      styles.listCard,
+                      { backgroundColor: colors.surface.card, borderColor: colors.border.default },
+                    ]}
+                    onPress={() => router.push(`/trip/${m.tripId}`)}
+                  >
+                    <View style={styles.listImageWrap}>
+                      {m.photoPath && !m.photoPath.startsWith('local://placeholder') ? (
+                        <Image source={{ uri: m.photoPath }} style={styles.listImage} />
+                      ) : (
+                        <View style={[styles.listPlaceholder, { backgroundColor: colors.surface.muted }]}>
+                          <Ionicons name="image-outline" size={40} color={colors.brand.blue} />
+                        </View>
+                      )}
+
+                      {m.locationName && (
+                        <View style={styles.listLocationBadge}>
+                          <Ionicons name="location" size={12} color="#FFFFFF" />
+                          <Typography variant="caption" color="#FFFFFF" style={styles.listLocationText} numberOfLines={1}>
+                            {m.locationName}
+                          </Typography>
+                        </View>
+                      )}
+                    </View>
+
+                    <View style={styles.listCardBody}>
+                      <Typography variant="label" color={colors.brand.navy} style={styles.listCaption} numberOfLines={2}>
+                        {m.caption || 'Travel Memory'}
+                      </Typography>
+                      <Typography variant="caption" color={colors.text.muted} style={{ marginTop: 4 }}>
+                        {new Date(m.capturedAt).toLocaleDateString(language === 'en' ? 'en-US' : 'id-ID', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                        })}
+                      </Typography>
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            )
           ) : (
             <Card style={styles.emptyAlbumCard}>
               <View style={styles.emptyAlbumContent}>
@@ -737,5 +864,150 @@ const styles = StyleSheet.create({
     backgroundColor: '#E0F2FE',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  albumControlsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing[3],
+    gap: spacing[2],
+  },
+  sortSegmentWrap: {
+    flexDirection: 'row',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    padding: 2,
+  },
+  sortPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radius.sm,
+  },
+  controlPillText: {
+    fontWeight: '700',
+    fontSize: 11,
+  },
+  viewModeToggleWrap: {
+    flexDirection: 'row',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    padding: 2,
+    alignItems: 'center',
+  },
+  viewModeBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: radius.sm,
+  },
+  gridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: spacing[3],
+  },
+  gridCard: {
+    width: '48.5%',
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  gridImageWrap: {
+    width: '100%',
+    height: 120,
+    position: 'relative',
+    backgroundColor: '#000',
+  },
+  gridImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  gridPlaceholder: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  gridLocationBadge: {
+    position: 'absolute',
+    bottom: 6,
+    left: 6,
+    right: 6,
+    backgroundColor: 'rgba(7, 27, 77, 0.75)',
+    borderRadius: radius.full,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  gridLocationText: {
+    marginLeft: 3,
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  gridCardBody: {
+    padding: spacing[2],
+  },
+  gridCaption: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  listContainer: {
+    gap: spacing[3],
+  },
+  listCard: {
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  listImageWrap: {
+    width: '100%',
+    height: 160,
+    position: 'relative',
+    backgroundColor: '#000',
+  },
+  listImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  listPlaceholder: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  listLocationBadge: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    backgroundColor: 'rgba(7, 27, 77, 0.8)',
+    borderRadius: radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  listLocationText: {
+    marginLeft: 4,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  listCardBody: {
+    padding: spacing[3],
+  },
+  listCaption: {
+    fontSize: 14,
+    fontWeight: '700',
   },
 });

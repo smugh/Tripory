@@ -42,6 +42,9 @@ export const MIGRATIONS: MigrationStep[] = [
         location_label TEXT,
         latitude REAL,
         longitude REAL,
+        image_uri TEXT,
+        notes TEXT,
+        todos TEXT,
         created_at TEXT NOT NULL
       );
 
@@ -117,6 +120,15 @@ export const MIGRATIONS: MigrationStep[] = [
       ALTER TABLE moments ADD COLUMN location_name TEXT;
       ALTER TABLE moments ADD COLUMN latitude REAL;
       ALTER TABLE moments ADD COLUMN longitude REAL;
+    `,
+  },
+  {
+    version: 3,
+    name: '0002_add_destination_details',
+    sql: `
+      ALTER TABLE destinations ADD COLUMN image_uri TEXT;
+      ALTER TABLE destinations ADD COLUMN notes TEXT;
+      ALTER TABLE destinations ADD COLUMN todos TEXT;
     `,
   },
 ];

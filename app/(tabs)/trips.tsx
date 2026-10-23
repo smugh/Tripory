@@ -121,7 +121,7 @@ export default function TripsScreen() {
     <ScreenContainer>
       {/* Refined Filter Row - full width pill container */}
       <View style={styles.filterRow}>
-        <View style={[styles.tabsContainer, { backgroundColor: isDarkMode ? '#0A1A3D' : '#EEF2F6' }]}>
+        <View style={[styles.tabsContainer, { backgroundColor: isDarkMode ? themeColors.surface.muted : '#EEF2F6' }]}>
           {filterTabs.map((tab) => {
             const isActive = filter === tab.key;
             return (

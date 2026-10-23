@@ -16,6 +16,9 @@ export const destinations = sqliteTable('destinations', {
   locationLabel: text('location_label'),
   latitude: real('latitude'),
   longitude: real('longitude'),
+  imageUri: text('image_uri'),
+  notes: text('notes'),
+  todos: text('todos'), // JSON array string: [{"id":"1","text":"beli tiket","completed":false}]
   createdAt: text('created_at').notNull(),
 });
 

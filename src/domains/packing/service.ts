@@ -18,6 +18,18 @@ export const packingService = {
     return nextState;
   },
 
+  async setItemState(tripItemId: string, state: PackingState): Promise<void> {
+    await packingRepository.updateItemState(tripItemId, state);
+  },
+
+  async setItemDestination(tripItemId: string, destinationId: string | null): Promise<void> {
+    await packingRepository.updateItemDestination(tripItemId, destinationId);
+  },
+
+  async deleteTripItem(tripItemId: string): Promise<void> {
+    await packingRepository.deleteTripItem(tripItemId);
+  },
+
   computeReadiness(items: TripItemEntity[], language: 'en' | 'id' = 'en'): PackingSummary {
     return computeReadiness(items, language);
   },

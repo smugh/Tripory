@@ -29,6 +29,26 @@ export const packingRepository = {
       .run();
   },
 
+  async updateItemDestination(id: string, plannedDestinationId: string | null): Promise<void> {
+    const now = new Date().toISOString();
+    db.update(tripItems)
+      .set({ plannedDestinationId, updatedAt: now })
+      .where(eq(tripItems.id, id))
+      .run();
+  },
+
+  async updateItem(id: string, updates: Partial<Omit<NewTripItemRecord, 'id' | 'createdAt'>>): Promise<void> {
+    const now = new Date().toISOString();
+    db.update(tripItems)
+      .set({ ...updates, updatedAt: now })
+      .where(eq(tripItems.id, id))
+      .run();
+  },
+
+  async deleteTripItem(id: string): Promise<void> {
+    db.delete(tripItems).where(eq(tripItems.id, id)).run();
+  },
+
   /**
    * Skenario Baju C: Mencatat actual usage di sebuah destinasi
    */

@@ -176,7 +176,7 @@ export default function ItemsScreen() {
                     backgroundColor: isSelected
                       ? themeColors.brand.blue
                       : isDarkMode
-                      ? '#0A1A3D'
+                      ? themeColors.surface.card
                       : '#F1F5F9',
                     borderColor: isSelected
                       ? themeColors.brand.blue
@@ -214,7 +214,7 @@ export default function ItemsScreen() {
               <View
                 style={[
                   styles.categoryIconCircle,
-                  { backgroundColor: isDarkMode ? '#132857' : '#F0F4F8' },
+                  { backgroundColor: isDarkMode ? themeColors.surface.muted : '#F0F4F8' },
                 ]}
               >
                 <Ionicons
@@ -293,7 +293,7 @@ export default function ItemsScreen() {
                       backgroundColor: newItemCategory === cat
                         ? themeColors.brand.blue
                         : isDarkMode
-                        ? '#0A1A3D'
+                        ? themeColors.surface.card
                         : '#F1F5F9',
                     },
                   ]}

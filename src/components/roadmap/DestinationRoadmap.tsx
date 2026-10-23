@@ -1,6 +1,7 @@
 import React from 'react';
-import { View, StyleSheet, Pressable } from 'react-native';
+import { View, StyleSheet, Pressable, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { colors, radius, spacing, useThemeColors } from '@/core/theme';
 import { Typography } from '../ui/Typography';
 import { Badge } from '../ui/Badge';
@@ -23,6 +24,7 @@ export const DestinationRoadmap: React.FC<DestinationRoadmapProps> = ({
   onAddStopPress,
   visitedIds = [],
 }) => {
+  const router = useRouter();
   const colors = useThemeColors();
   const isDarkMode = useUIStore((s) => s.isDarkMode);
   const { t, format, language } = useI18n();
@@ -121,8 +123,9 @@ export const DestinationRoadmap: React.FC<DestinationRoadmapProps> = ({
 
               {/* Right Column: Destination Card */}
               <View style={styles.cardColumn}>
-                <View
-                  style={[
+                <Pressable
+                  onPress={() => router.push(`/destination/${dest.id}` as any)}
+                  style={({ pressed }) => [
                     styles.destinationCard,
                     {
                       backgroundColor: colors.surface.card,
@@ -142,8 +145,16 @@ export const DestinationRoadmap: React.FC<DestinationRoadmapProps> = ({
                         borderColor: isDarkMode ? '#1E3A52' : '#E2E8F0',
                       },
                     ],
+                    pressed && { opacity: 0.95 },
                   ]}
                 >
+                  {/* Optional Destination Image Thumbnail */}
+                  {dest.imageUri && (
+                    <View style={styles.cardThumbWrap}>
+                      <Image source={{ uri: dest.imageUri }} style={styles.cardThumbImage} />
+                    </View>
+                  )}
+
                   {/* Meta Bar */}
                   <View style={styles.metaRow}>
                     <View style={styles.dayBadge}>
@@ -196,11 +207,14 @@ export const DestinationRoadmap: React.FC<DestinationRoadmapProps> = ({
                     </View>
                   ) : null}
 
-                  {/* Action Bar (Check-in button) */}
-                  {onToggleVisited ? (
-                    <View style={styles.cardActions}>
+                  {/* Action Bar (Check-in button & Detail link) */}
+                  <View style={styles.cardActions}>
+                    {onToggleVisited ? (
                       <Pressable
-                        onPress={() => onToggleVisited(dest, idx)}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          onToggleVisited(dest, idx);
+                        }}
                         style={[
                           styles.actionPill,
                           isVisited ? styles.actionPillVisited : styles.actionPillActive,
@@ -219,9 +233,15 @@ export const DestinationRoadmap: React.FC<DestinationRoadmapProps> = ({
                           {isVisited ? t.trip.visitedBtn : t.trip.markVisitedBtn}
                         </Typography>
                       </Pressable>
+                    ) : <View />}
+
+                    <View style={styles.detailLink}>
+                      <Typography variant="caption" color={colors.brand.blue} style={{ fontWeight: '700' }}>
+                        {language === 'en' ? 'Details →' : 'Detail →'}
+                      </Typography>
                     </View>
-                  ) : null}
-                </View>
+                  </View>
+                </Pressable>
               </View>
             </View>
           );
@@ -365,7 +385,23 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border.muted,
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  cardThumbWrap: {
+    height: 110,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+    marginBottom: spacing[2],
+  },
+  cardThumbImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  detailLink: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   actionPill: {
     flexDirection: 'row',

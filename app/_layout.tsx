@@ -115,6 +115,13 @@ export default function RootLayout() {
             headerBackTitle: t.trip.back,
           }}
         />
+        <Stack.Screen
+          name="trip/close"
+          options={{
+            title: t.tripClose.screenTitle,
+            headerBackTitle: t.trip.back,
+          }}
+        />
       </Stack>
 
       {/* Branded Splash Screen Overlay with Primary Logo Centered */}

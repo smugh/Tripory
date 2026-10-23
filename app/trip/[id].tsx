@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, Alert, Pressable, Image, ActivityIndicator, Modal } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { colors, spacing, radius, useThemeColors } from '@/core/theme';
 import { Typography, Card, Badge, Button, Input, ScreenContainer, ProgressBar } from '@/components/ui';
-import { TripLifecycleRoadmap, DestinationRoadmap } from '@/components/roadmap';
+import { TripLifecycleRoadmap, DestinationRoadmap, DestinationJourneyMap } from '@/components/roadmap';
 import { tripRepository } from '@/db/repositories/trip.repository';
 import { destinationRepository } from '@/db/repositories/destination.repository';
 import { packingRepository } from '@/db/repositories/packing.repository';
@@ -47,6 +47,8 @@ export default function TripDetailScreen() {
   const [activeItemMenu, setActiveItemMenu] = useState<TripItemRecord | null>(null);
   const [targetDestinationForNewItem, setTargetDestinationForNewItem] = useState<string | null>(null);
   const [visitedStopIds, setVisitedStopIds] = useState<string[]>([]);
+  const [visitingModalDest, setVisitingModalDest] = useState<DestinationRecord | null>(null);
+  const [selectedUsedItemIds, setSelectedUsedItemIds] = useState<string[]>([]);
 
   // Inline forms
   const [newDestName, setNewDestName] = useState('');
@@ -101,9 +103,15 @@ export default function TripDetailScreen() {
   };
 
   const handleToggleVisited = (dest: DestinationRecord) => {
-    setVisitedStopIds((prev) =>
-      prev.includes(dest.id) ? prev.filter((i) => i !== dest.id) : [...prev, dest.id]
-    );
+    if (visitedStopIds.includes(dest.id)) {
+      // If already visited, tapping untoggles it
+      setVisitedStopIds((prev) => prev.filter((i) => i !== dest.id));
+    } else {
+      // Opening dialog to check items used at this destination
+      setVisitingModalDest(dest);
+      const mapped = items.filter((i) => i.plannedDestinationId === dest.id && i.state !== 'used');
+      setSelectedUsedItemIds(mapped.map((i) => i.id));
+    }
   };
 
   // 1-Tap Add Bundle of Items
@@ -357,39 +365,9 @@ export default function TripDetailScreen() {
     ]);
   };
 
-  const handleCloseTrip = async () => {
+  const handleCloseTrip = () => {
     if (!id) return;
-
-    Alert.alert(
-      t.trip.closeModalTitle,
-      t.trip.closeModalDesc,
-      [
-        { text: t.trip.cancel, style: 'cancel' },
-        {
-          text: t.trip.closeModalAction,
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setIsClosingTrip(true);
-              const result = await tripClosureService.closeTrip({ tripId: id });
-              if (result.hasMissingItems) {
-                Alert.alert(
-                  t.trip.closeModalSuccessMissingTitle,
-                  format(t.trip.closeModalSuccessMissingMsg, { count: result.missingItemsCount })
-                );
-              } else {
-                Alert.alert(t.trip.closeModalSuccessAllTitle, t.trip.closeModalSuccessAllMsg);
-              }
-              loadTripData();
-            } catch {
-              Alert.alert(language === 'en' ? 'Error' : 'Gagal', t.trip.alertTripCloseError);
-            } finally {
-              setIsClosingTrip(false);
-            }
-          },
-        },
-      ]
-    );
+    router.push({ pathname: '/trip/close', params: { tripId: id } } as any);
   };
 
   if (!trip) {
@@ -496,83 +474,16 @@ export default function TripDetailScreen() {
             </View>
           </View>
 
-          {/* Lifecycle Stepper Component */}
-          <View style={styles.lifecycleWrap}>
-            <TripLifecycleRoadmap status={trip.status} theme="dark" compact={false} />
-          </View>
+          {/* Unique Compact Destination Route Journey Map */}
+          <DestinationJourneyMap
+            destinations={destinations}
+            visitedIds={visitedStopIds}
+            onAddStopPress={() => {
+              setActiveTab('roadmap');
+              setIsAddingDest(true);
+            }}
+          />
         </Card>
-
-        {/* SMART CO-PILOT GUIDED ACTION CARD */}
-        {!isCompleted ? (
-          <Card elevated style={styles.coPilotCard}>
-            <View style={styles.coPilotHeader}>
-              <View style={styles.coPilotIconCircle}>
-                <Ionicons
-                  name={isOngoing ? 'navigate' : isReady ? 'rocket' : 'compass'}
-                  size={20}
-                  color={colors.brand.coral}
-                />
-              </View>
-              <View style={styles.coPilotTitles}>
-                <Typography variant="label" color={colors.brand.coral}>
-                  {t.trip.copilotHeading}
-                </Typography>
-                <Typography variant="h3" color={colors.brand.navy}>
-                  {isPreparing && readinessPercent < 100
-                    ? format(t.trip.copilotPack, { count: readiness.totalItems - readiness.packedCount })
-                    : isPreparing || isReady
-                    ? t.trip.copilotReady
-                    : isOngoing
-                    ? t.trip.copilotOngoing
-                    : t.trip.copilotCompleted}
-                </Typography>
-              </View>
-            </View>
-
-            <View style={styles.coPilotActionRow}>
-              {isPreparing && readinessPercent < 100 ? (
-                <>
-                  <Button
-                    label={t.trip.openChecklistBtn}
-                    size="sm"
-                    variant="secondary"
-                    onPress={() => setActiveTab('packing')}
-                  />
-                  {items.length > 0 ? (
-                    <Button
-                      label={t.trip.markAllPackedBtn}
-                      size="sm"
-                      variant="primary"
-                      onPress={handlePackAll}
-                    />
-                  ) : null}
-                </>
-              ) : isPreparing || isReady ? (
-                <Button
-                  label={t.trip.startTripBtn}
-                  size="md"
-                  variant="accent"
-                  onPress={() => handleAdvanceStatus('ongoing')}
-                />
-              ) : isOngoing ? (
-                <>
-                  <Button
-                    label={t.trip.addMomentPhotoBtn}
-                    size="sm"
-                    variant="secondary"
-                    onPress={() => setActiveTab('moments')}
-                  />
-                  <Button
-                    label={t.trip.finishTripBtn}
-                    size="sm"
-                    variant="primary"
-                    onPress={handleCloseTrip}
-                  />
-                </>
-              ) : null}
-            </View>
-          </Card>
-        ) : null}
 
         {/* Workspace Segment Tabs */}
         <View style={styles.tabsBar}>
@@ -598,9 +509,9 @@ export default function TripDetailScreen() {
             style={[styles.segmentTab, activeTab === 'packing' && styles.segmentTabActive]}
             onPress={() => setActiveTab('packing')}
           >
-            <Ionicons
-              name={activeTab === 'packing' ? 'bag-handle' : 'bag-handle-outline'}
-              size={16}
+            <MaterialIcons
+              name="backpack"
+              size={17}
               color={activeTab === 'packing' ? '#FFFFFF' : colors.brand.navy}
             />
             <Typography
@@ -757,53 +668,9 @@ export default function TripDetailScreen() {
           </View>
         ) : null}
 
-        {/* TAB 2: PACKING & READINESS */}
+        {/* TAB 2: PACKING & INVENTORY */}
         {activeTab === 'packing' ? (
           <View style={styles.tabContent}>
-            {/* Readiness Gauge Card */}
-            <Card elevated style={styles.readinessCard}>
-              <View style={styles.readinessHeader}>
-                <View>
-                  <Typography variant="caption" color={colors.text.secondary}>
-                    {t.trip.readinessTitle}
-                  </Typography>
-                  <Typography variant="h2" color={colors.brand.navy}>
-                    {format(t.trip.readinessSubtitle, { packed: readiness.packedCount, total: readiness.totalItems })}
-                  </Typography>
-                </View>
-                <Badge
-                  label={readiness.statusLabel}
-                  variant={readinessPercent === 100 ? 'success' : 'accent'}
-                  dot
-                />
-              </View>
-
-              <ProgressBar
-                progress={readinessPercent}
-                variant={readinessPercent === 100 ? 'success' : 'accent'}
-                height={10}
-                showLabel
-                label={t.trip.packingProgress}
-              />
-
-              {/* Critical Blockers */}
-              {readiness.criticalBlockers.length > 0 ? (
-                <View style={styles.blockerAlertBox}>
-                  <View style={styles.blockerTitleRow}>
-                    <Ionicons name="alert-circle" size={16} color={colors.status.error} />
-                    <Typography variant="label" color={colors.status.error} style={styles.blockerTitle}>
-                      {format(t.trip.blockersTitle, { count: readiness.criticalBlockers.length })}
-                    </Typography>
-                  </View>
-                  {readiness.criticalBlockers.map((b) => (
-                    <Typography key={b.id} variant="caption" color={colors.status.error} style={styles.blockerItem}>
-                      • {b.customName} ({b.category})
-                    </Typography>
-                  ))}
-                </View>
-              ) : null}
-            </Card>
-
             {/* 2 OPTIONS SUB-TABS: STARTER PACK VS DESTINATION PACK */}
             <View style={styles.packSubTabContainer}>
               <Pressable
@@ -849,45 +716,6 @@ export default function TripDetailScreen() {
                   {items.filter((i) => !!i.plannedDestinationId).length})
                 </Typography>
               </Pressable>
-            </View>
-
-            {/* Mode Guidance Alert: Planning vs In-Trip */}
-            <View
-              style={[
-                styles.modeGuidanceBanner,
-                {
-                  backgroundColor:
-                    trip?.status === 'ongoing'
-                      ? 'rgba(22, 163, 74, 0.1)'
-                      : colors.surface.card,
-                  borderColor:
-                    trip?.status === 'ongoing'
-                      ? colors.status.success
-                      : colors.border.default,
-                },
-              ]}
-            >
-              <Ionicons
-                name={trip?.status === 'ongoing' ? 'navigate' : 'clipboard-outline'}
-                size={18}
-                color={trip?.status === 'ongoing' ? colors.status.success : colors.brand.blue}
-              />
-              <View style={{ flex: 1, marginLeft: 8 }}>
-                <Typography
-                  variant="label"
-                  color={trip?.status === 'ongoing' ? colors.status.success : colors.brand.navy}
-                  style={{ fontWeight: '700' }}
-                >
-                  {trip?.status === 'ongoing'
-                    ? t.packWorkspace.modeTravelTitle
-                    : t.packWorkspace.modePlanningTitle}
-                </Typography>
-                <Typography variant="caption" color={colors.text.secondary} style={{ marginTop: 2 }}>
-                  {trip?.status === 'ongoing'
-                    ? t.packWorkspace.modeTravelDesc
-                    : t.packWorkspace.modePlanningDesc}
-                </Typography>
-              </View>
             </View>
 
             {/* ONE-TAP QUICK STARTER PACKAGES */}
@@ -1641,6 +1469,204 @@ export default function TripDetailScreen() {
               />
             </Pressable>
           </Pressable>
+        </Modal>
+      )}
+
+      {/* MODAL: Visited Destination & Inventory Usage Dialog */}
+      {visitingModalDest && (
+        <Modal
+          transparent
+          animationType="fade"
+          visible={!!visitingModalDest}
+          onRequestClose={() => setVisitingModalDest(null)}
+        >
+          <View style={styles.modalOverlay}>
+            <View
+              style={[
+                styles.modalCard,
+                { backgroundColor: themeColors.surface.card, maxHeight: '85%' },
+              ]}
+            >
+              {/* Header */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+                <View
+                  style={[
+                    styles.sheetIconCircle,
+                    { backgroundColor: 'rgba(22, 163, 74, 0.15)' },
+                  ]}
+                >
+                  <Ionicons name="checkmark-circle" size={24} color={themeColors.status.success} />
+                </View>
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <Typography variant="h3" color={themeColors.brand.navy} numberOfLines={1}>
+                    {format(t.trip.visitedDialogTitle, { destName: visitingModalDest.name })}
+                  </Typography>
+                  <Typography variant="caption" color={themeColors.text.secondary}>
+                    {t.trip.visitedDialogSubtitle}
+                  </Typography>
+                </View>
+              </View>
+
+              <View
+                style={[styles.sheetDivider, { backgroundColor: themeColors.border.default }]}
+              />
+
+              {/* Items List */}
+              {(() => {
+                const targetItems = items.filter(
+                  (i) => i.plannedDestinationId === visitingModalDest.id
+                );
+                const displayItems =
+                  targetItems.length > 0
+                    ? targetItems
+                    : items.filter((i) => i.state !== 'returned');
+
+                return (
+                  <>
+                    {displayItems.length === 0 ? (
+                      <View style={{ paddingVertical: 18, alignItems: 'center' }}>
+                        <Ionicons name="bag-outline" size={28} color={themeColors.text.muted} />
+                        <Typography
+                          variant="caption"
+                          color={themeColors.text.muted}
+                          style={{ textAlign: 'center', marginTop: 6 }}
+                        >
+                          {t.trip.visitedDialogEmptyItems}
+                        </Typography>
+                      </View>
+                    ) : (
+                      <ScrollView
+                        style={{ maxHeight: 220, marginVertical: 6 }}
+                        showsVerticalScrollIndicator={false}
+                      >
+                        {displayItems.map((item) => {
+                          const isChecked = selectedUsedItemIds.includes(item.id);
+                          return (
+                            <Pressable
+                              key={item.id}
+                              style={[
+                                styles.checkItemRow,
+                                {
+                                  paddingVertical: 10,
+                                  borderBottomColor: themeColors.border.muted,
+                                },
+                              ]}
+                              onPress={() => {
+                                setSelectedUsedItemIds((prev) =>
+                                  prev.includes(item.id)
+                                    ? prev.filter((x) => x !== item.id)
+                                    : [...prev, item.id]
+                                );
+                              }}
+                            >
+                              <View
+                                style={[
+                                  styles.checkbox,
+                                  isChecked && {
+                                    backgroundColor: themeColors.status.success,
+                                    borderColor: themeColors.status.success,
+                                  },
+                                ]}
+                              >
+                                {isChecked && (
+                                  <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+                                )}
+                              </View>
+
+                              <View style={{ flex: 1, marginRight: 8 }}>
+                                <Typography variant="label" color={themeColors.brand.navy}>
+                                  {item.customName}
+                                </Typography>
+                                <Typography variant="caption" color={themeColors.text.muted}>
+                                  {item.category} • Qty: {item.quantity}
+                                </Typography>
+                              </View>
+
+                              <Badge
+                                label={
+                                  isChecked
+                                    ? t.trip.visitedDialogItemUsedLabel
+                                    : item.state === 'packed'
+                                    ? 'Packed'
+                                    : 'Planned'
+                                }
+                                variant={isChecked ? 'success' : 'neutral'}
+                                size="sm"
+                              />
+                            </Pressable>
+                          );
+                        })}
+                      </ScrollView>
+                    )}
+
+                    {/* Action Buttons */}
+                    <View style={{ gap: 8, marginTop: 12 }}>
+                      {/* 1. Mark All Used */}
+                      {displayItems.length > 0 && (
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          label={t.trip.visitedDialogMarkAllUsed}
+                          onPress={async () => {
+                            try {
+                              for (const it of displayItems) {
+                                await packingRepository.updateItemState(it.id, 'used');
+                              }
+                              setVisitedStopIds((prev) => [...prev, visitingModalDest.id]);
+                              setVisitingModalDest(null);
+                              loadTripData();
+                            } catch {
+                              Alert.alert('Error', 'Failed to update items.');
+                            }
+                          }}
+                        />
+                      )}
+
+                      {/* 2. Save Selection if some checked */}
+                      {displayItems.length > 0 && selectedUsedItemIds.length > 0 && (
+                        <Button
+                          variant="accent"
+                          size="sm"
+                          label={t.trip.visitedDialogSaveSelection}
+                          onPress={async () => {
+                            try {
+                              for (const idToUpdate of selectedUsedItemIds) {
+                                await packingRepository.updateItemState(idToUpdate, 'used');
+                              }
+                              setVisitedStopIds((prev) => [...prev, visitingModalDest.id]);
+                              setVisitingModalDest(null);
+                              loadTripData();
+                            } catch {
+                              Alert.alert('Error', 'Failed to update selected items.');
+                            }
+                          }}
+                        />
+                      )}
+
+                      {/* 3. Skip / No changes */}
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        label={t.trip.visitedDialogNoChange}
+                        onPress={() => {
+                          setVisitedStopIds((prev) => [...prev, visitingModalDest.id]);
+                          setVisitingModalDest(null);
+                        }}
+                      />
+
+                      {/* 4. Cancel */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        label={t.trip.cancel}
+                        onPress={() => setVisitingModalDest(null)}
+                      />
+                    </View>
+                  </>
+                );
+              })()}
+            </View>
+          </View>
         </Modal>
       )}
     </ScreenContainer>

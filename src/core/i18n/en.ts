@@ -303,6 +303,21 @@ export const en = {
     statusVisited: 'Visited',
     statusPlanned: 'Planned',
 
+    // Journey Route Map
+    journeyMapTitle: 'Journey Route Map',
+    journeyMapProgress: '{visited}/{total} Stops',
+    journeyMapEmpty: '+ Add destination stops to visualize your route map',
+    journeyMapStopPrefix: 'Stop {number}',
+
+    // Mark Visited & Item Usage Dialog
+    visitedDialogTitle: 'Stop Visited: {destName}',
+    visitedDialogSubtitle: 'Update inventory items used at this location:',
+    visitedDialogEmptyItems: 'No items are mapped specifically to this stop. You can confirm visited directly.',
+    visitedDialogMarkAllUsed: '✓ Mark All Used',
+    visitedDialogSaveSelection: 'Save & Mark Visited',
+    visitedDialogNoChange: 'Skip / No Changes',
+    visitedDialogItemUsedLabel: 'Used',
+
     // Trip Closure
     closeSectionTitle: 'Finish & Close Trip',
     closeSectionDesc: 'Perform return check and archive this journey. If any items remain unverified, the system will keep them as unreturned records without blocking closure.',
@@ -419,6 +434,32 @@ export const en = {
     markUsed: 'Mark Used',
     markPacked: 'Mark Packed',
     markReturned: 'Return Check',
+  },
+
+  // Trip Close & Final Return Check Screen
+  tripClose: {
+    screenTitle: 'Trip Closure & Return Check',
+    headerTitle: 'Final Journey Summary',
+    headerDesc: 'Verify all returned equipment and wrap up your journey offline.',
+    statStops: 'Stops Visited',
+    statPhotos: 'Photos & Notes',
+    statItems: 'Items Returned',
+    checklistTitle: 'Final Return Equipment Checklist',
+    checklistSubtitle: 'Check off each item once safely unpacked or returned home.',
+    checkAllReturnedBtn: '✓ Verify All Items Returned',
+    filterAll: 'All ({count})',
+    filterPending: 'Need Check ({count})',
+    filterReturned: 'Returned ({count})',
+    statusReturned: 'Returned Safely',
+    statusPending: 'Needs Verification',
+    allReturnedBanner: 'All items accounted for! Safe and sound.',
+    unreturnedNotice: '{count} items not yet verified back. You can still close and archive the trip; unreturned items will be safely logged in the archive.',
+    closeTripBtn: '🚀 Complete & Archive Trip',
+    returnToTripBtn: 'Back to Trip Workspace',
+    successTitle: 'Trip Completed & Archived!',
+    successMsgAll: 'All items were verified back home. Your trip memories have been securely archived!',
+    successMsgMissing: 'Trip archived successfully. Note: {count} unreturned items were recorded in the journey archive.',
+    closingTrip: 'Closing trip...',
   },
 };
 

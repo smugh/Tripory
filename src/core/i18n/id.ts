@@ -305,6 +305,21 @@ export const id: TranslationDictionary = {
     statusVisited: 'Tercapai',
     statusPlanned: 'Rencana',
 
+    // Peta Rute Perjalanan
+    journeyMapTitle: 'Peta Rute Destinasi',
+    journeyMapProgress: '{visited}/{total} Titik',
+    journeyMapEmpty: '+ Tambah destinasi untuk membentuk peta rute perjalanan',
+    journeyMapStopPrefix: 'Titik {number}',
+
+    // Dialog Mark Visited & Update Inventaris Terpakai
+    visitedDialogTitle: 'Destinasi Tercapai: {destName}',
+    visitedDialogSubtitle: 'Perbarui perlengkapan yang terpakai di lokasi ini:',
+    visitedDialogEmptyItems: 'Belum ada barang yang dipetakan khusus ke destinasi ini. Anda dapat langsung menandai telah dikunjungi.',
+    visitedDialogMarkAllUsed: '✓ Tandai Semua Terpakai',
+    visitedDialogSaveSelection: 'Simpan & Tandai Dikunjungi',
+    visitedDialogNoChange: 'Lewati / Tanpa Perubahan',
+    visitedDialogItemUsedLabel: 'Terpakai',
+
     // Penutupan Perjalanan (Trip Closure)
     closeSectionTitle: 'Selesai & Tutup Perjalanan',
     closeSectionDesc: 'Lakukan return check dan arsipkan perjalanan ini. Jika ada barang belum diverifikasi, sistem akan menyimpannya sebagai catatan barang hilang tanpa mengunci penutupan trip.',
@@ -421,5 +436,31 @@ export const id: TranslationDictionary = {
     markUsed: 'Tandai Terpakai',
     markPacked: 'Tandai Siap',
     markReturned: 'Cek Balik',
+  },
+
+  // Halaman Finalisasi & Tutup Perjalanan
+  tripClose: {
+    screenTitle: 'Finalisasi & Tutup Trip',
+    headerTitle: 'Ringkasan Akhir Perjalanan',
+    headerDesc: 'Verifikasi seluruh perlengkapan yang kembali dan tutup perjalanan secara offline.',
+    statStops: 'Destinasi Selesai',
+    statPhotos: 'Momen Tersimpan',
+    statItems: 'Barang Kembali',
+    checklistTitle: 'Checklist Pemeriksaan Kepulangan Barang',
+    checklistSubtitle: 'Centang setiap barang yang sudah dibongkar atau kembali aman ke rumah.',
+    checkAllReturnedBtn: '✓ Tandai Semua Barang Kembali',
+    filterAll: 'Semua ({count})',
+    filterPending: 'Perlu Cek ({count})',
+    filterReturned: 'Kembali ({count})',
+    statusReturned: 'Kembali Aman',
+    statusPending: 'Perlu Verifikasi',
+    allReturnedBanner: 'Semua barang telah kembali lengkap & aman!',
+    unreturnedNotice: '{count} barang belum diverifikasi kembali. Anda tetap dapat menutup trip dan barang yang belum kembali akan dicatat dalam arsip perjalanan.',
+    closeTripBtn: '🚀 Selesaikan & Tutup Perjalanan',
+    returnToTripBtn: 'Kembali ke Trip',
+    successTitle: 'Perjalanan Berhasil Ditutup!',
+    successMsgAll: 'Semua barang telah kembali lengkap. Kenangan perjalanan Anda tersimpan aman di arsip!',
+    successMsgMissing: 'Trip berhasil ditutup. Catatan: {count} barang yang belum kembali dicatat pada arsip trip.',
+    closingTrip: 'Menutup perjalanan...',
   },
 };

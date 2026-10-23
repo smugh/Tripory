@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, Pressable, Image } from 'react-native';
 import { Tabs, useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useThemeColors } from '@/core/theme';
 import { useUIStore } from '@/stores/ui-store';
 import { useI18n } from '@/core/i18n';
@@ -130,9 +130,9 @@ export default function TabLayout() {
         options={{
           title: t.tabs.inventory,
           headerTitle: t.tabs.inventoryHeader,
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? 'bag-handle' : 'bag-handle-outline'}
+          tabBarIcon: ({ color }) => (
+            <MaterialIcons
+              name="backpack"
               size={24}
               color={typeof color === 'string' ? color : colors.brand.coral}
             />

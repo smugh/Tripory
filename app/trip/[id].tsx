@@ -44,6 +44,7 @@ export default function TripDetailScreen() {
   const [packingFilter, setPackingFilter] = useState<PackingFilter>('all');
   const [packSubTab, setPackSubTab] = useState<'starter' | 'destinations'>('starter');
   const [itemToShift, setItemToShift] = useState<TripItemRecord | null>(null);
+  const [activeItemMenu, setActiveItemMenu] = useState<TripItemRecord | null>(null);
   const [targetDestinationForNewItem, setTargetDestinationForNewItem] = useState<string | null>(null);
   const [visitedStopIds, setVisitedStopIds] = useState<string[]>([]);
 
@@ -211,6 +212,30 @@ export default function TripDetailScreen() {
     } catch {
       Alert.alert(language === 'en' ? 'Error' : 'Gagal', t.trip.alertItemUpdateError);
     }
+  };
+
+  const handleDeleteTripItem = (item: TripItemRecord) => {
+    Alert.alert(
+      language === 'en' ? 'Delete Item' : 'Hapus Barang',
+      language === 'en'
+        ? `Remove "${item.customName}" from trip checklist?`
+        : `Hapus "${item.customName}" dari daftar checklist?`,
+      [
+        { text: t.trip.cancel, style: 'cancel' },
+        {
+          text: t.trip.delete,
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await packingRepository.deleteTripItem(item.id);
+              loadTripData();
+            } catch {
+              Alert.alert(language === 'en' ? 'Error' : 'Gagal', 'Could not delete item.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handlePackAll = async () => {
@@ -977,30 +1002,20 @@ export default function TripDetailScreen() {
                             </Typography>
                           </View>
 
-                          <View style={styles.itemActionsGroup}>
-                            {/* Action: Mark Used */}
-                            {isPacked && !isUsed && (
-                              <Pressable
-                                style={[styles.markUsedBtn, { backgroundColor: colors.status.successLight }]}
-                                onPress={() => handleUpdateItemState(item, 'used')}
-                              >
-                                <Typography variant="caption" color={colors.status.success} style={{ fontWeight: '700' }}>
-                                  {t.packWorkspace.markUsed}
-                                </Typography>
-                              </Pressable>
-                            )}
-
-                            {/* Action: Shift / Map to Destination */}
-                            <Pressable
-                              style={[styles.shiftBtn, { borderColor: colors.border.default }]}
-                              onPress={() => setItemToShift(item)}
-                            >
-                              <Ionicons name="location-outline" size={13} color={colors.brand.blue} />
-                              <Typography variant="caption" color={colors.brand.blue} style={{ marginLeft: 3, fontWeight: '700' }}>
-                                {language === 'en' ? 'Map Stop' : 'Petakan'}
-                              </Typography>
-                            </Pressable>
-                          </View>
+                          {/* 3-Dots Action Button */}
+                          <Pressable
+                            style={[
+                              styles.itemMenuBtn,
+                              {
+                                backgroundColor: colors.surface.page,
+                                borderColor: colors.border.default,
+                              },
+                            ]}
+                            onPress={() => setActiveItemMenu(item)}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          >
+                            <Ionicons name="ellipsis-vertical" size={17} color={colors.text.primary} />
+                          </Pressable>
                         </View>
                       );
                     })
@@ -1108,30 +1123,20 @@ export default function TripDetailScreen() {
                                     </Typography>
                                   </View>
 
-                                  <View style={styles.itemActionsGroup}>
-                                    {/* Action: Mark Used */}
-                                    {isPacked && !isUsed && (
-                                      <Pressable
-                                        style={[styles.markUsedBtn, { backgroundColor: colors.status.successLight }]}
-                                        onPress={() => handleUpdateItemState(item, 'used')}
-                                      >
-                                        <Typography variant="caption" color={colors.status.success} style={{ fontWeight: '700' }}>
-                                          {t.packWorkspace.markUsed}
-                                        </Typography>
-                                      </Pressable>
-                                    )}
-
-                                    {/* Action: Shift to Next Stop */}
-                                    <Pressable
-                                      style={[styles.shiftBtn, { borderColor: colors.border.strong }]}
-                                      onPress={() => setItemToShift(item)}
-                                    >
-                                      <Ionicons name="swap-horizontal" size={13} color={colors.text.primary} />
-                                      <Typography variant="caption" color={colors.text.primary} style={{ marginLeft: 3, fontWeight: '700' }}>
-                                        {language === 'en' ? 'Shift' : 'Geser'}
-                                      </Typography>
-                                    </Pressable>
-                                  </View>
+                                  {/* 3-Dots Action Button */}
+                                  <Pressable
+                                    style={[
+                                      styles.itemMenuBtn,
+                                      {
+                                        backgroundColor: colors.surface.page,
+                                        borderColor: colors.border.default,
+                                      },
+                                    ]}
+                                    onPress={() => setActiveItemMenu(item)}
+                                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                  >
+                                    <Ionicons name="ellipsis-vertical" size={17} color={colors.text.primary} />
+                                  </Pressable>
                                 </View>
                               );
                             })
@@ -1409,6 +1414,233 @@ export default function TripDetailScreen() {
               />
             </View>
           </View>
+        </Modal>
+      )}
+
+      {/* MODAL: Item Context Actions (3-Dots Kebab Menu) */}
+      {activeItemMenu && (
+        <Modal
+          transparent
+          animationType="fade"
+          visible={!!activeItemMenu}
+          onRequestClose={() => setActiveItemMenu(null)}
+        >
+          <Pressable
+            style={styles.sheetBackdrop}
+            onPress={() => setActiveItemMenu(null)}
+          >
+            <Pressable
+              style={[
+                styles.actionSheetCard,
+                { backgroundColor: colors.surface.card, borderColor: colors.border.strong },
+              ]}
+              onPress={(e) => e.stopPropagation()}
+            >
+              {/* Drag Handle Indicator */}
+              <View style={styles.sheetHandleWrap}>
+                <View style={[styles.sheetHandle, { backgroundColor: colors.border.strong }]} />
+              </View>
+
+              {/* Sheet Header: Item Info */}
+              <View style={styles.sheetHeader}>
+                <View style={styles.sheetHeaderLeft}>
+                  <View style={[styles.sheetIconCircle, { backgroundColor: colors.surface.page }]}>
+                    <Ionicons name="bag-handle" size={20} color={colors.brand.coral} />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Typography variant="h3" color={colors.brand.navy} numberOfLines={1}>
+                      {activeItemMenu.customName}
+                    </Typography>
+                    <Typography variant="caption" color={colors.text.muted}>
+                      {activeItemMenu.category} • Qty: {activeItemMenu.quantity}
+                    </Typography>
+                  </View>
+                </View>
+                <Pressable
+                  onPress={() => setActiveItemMenu(null)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  style={styles.sheetCloseBtn}
+                >
+                  <Ionicons name="close" size={20} color={colors.text.muted} />
+                </Pressable>
+              </View>
+
+              <View style={[styles.sheetDivider, { backgroundColor: colors.border.default }]} />
+
+              {/* Action Options */}
+              <View style={styles.sheetActionsList}>
+                {/* 1. Toggle Packing Status */}
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.sheetActionItem,
+                    { backgroundColor: colors.surface.page },
+                    pressed && { opacity: 0.8 },
+                  ]}
+                  onPress={() => {
+                    handleTogglePack(activeItemMenu);
+                    setActiveItemMenu(null);
+                  }}
+                >
+                  <View style={[styles.actionIconBox, { backgroundColor: `${colors.brand.blue}15` }]}>
+                    <Ionicons
+                      name={
+                        activeItemMenu.state === 'packed' || activeItemMenu.state === 'used'
+                          ? 'refresh-outline'
+                          : 'cube-outline'
+                      }
+                      size={20}
+                      color={colors.brand.blue}
+                    />
+                  </View>
+                  <View style={styles.actionTextBox}>
+                    <Typography variant="label" color={colors.brand.navy}>
+                      {activeItemMenu.state === 'packed' || activeItemMenu.state === 'used'
+                        ? t.destDetail.actionMarkUnpacked
+                        : t.destDetail.actionMarkPacked}
+                    </Typography>
+                    <Typography variant="caption" color={colors.text.muted} style={{ marginTop: 2 }}>
+                      {activeItemMenu.state === 'packed' || activeItemMenu.state === 'used'
+                        ? t.destDetail.actionMarkUnpackedDesc
+                        : t.destDetail.actionMarkPackedDesc}
+                    </Typography>
+                  </View>
+                </Pressable>
+
+                {/* 2. Toggle In-Trip Usage Status */}
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.sheetActionItem,
+                    { backgroundColor: colors.surface.page },
+                    pressed && { opacity: 0.8 },
+                  ]}
+                  onPress={() => {
+                    const isUsed = activeItemMenu.state === 'used';
+                    handleUpdateItemState(activeItemMenu, isUsed ? 'packed' : 'used');
+                    setActiveItemMenu(null);
+                  }}
+                >
+                  <View style={[styles.actionIconBox, { backgroundColor: `${colors.status.success}15` }]}>
+                    <Ionicons
+                      name={
+                        activeItemMenu.state === 'used'
+                          ? 'arrow-undo-outline'
+                          : 'checkmark-done-circle-outline'
+                      }
+                      size={20}
+                      color={colors.status.success}
+                    />
+                  </View>
+                  <View style={styles.actionTextBox}>
+                    <Typography variant="label" color={colors.brand.navy}>
+                      {activeItemMenu.state === 'used'
+                        ? t.destDetail.actionResetUsed
+                        : t.destDetail.actionMarkUsed}
+                    </Typography>
+                    <Typography variant="caption" color={colors.text.muted} style={{ marginTop: 2 }}>
+                      {activeItemMenu.state === 'used'
+                        ? t.destDetail.actionResetUsedDesc
+                        : t.destDetail.actionMarkUsedDesc}
+                    </Typography>
+                  </View>
+                </Pressable>
+
+                {/* 3. Shift Destination / Map Stop */}
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.sheetActionItem,
+                    { backgroundColor: colors.surface.page },
+                    pressed && { opacity: 0.8 },
+                  ]}
+                  onPress={() => {
+                    const item = activeItemMenu;
+                    setActiveItemMenu(null);
+                    setItemToShift(item);
+                  }}
+                >
+                  <View style={[styles.actionIconBox, { backgroundColor: `${colors.brand.coral}15` }]}>
+                    <Ionicons name="swap-horizontal" size={20} color={colors.brand.coral} />
+                  </View>
+                  <View style={styles.actionTextBox}>
+                    <Typography variant="label" color={colors.brand.navy}>
+                      {t.destDetail.actionShiftDest}
+                    </Typography>
+                    <Typography variant="caption" color={colors.text.muted} style={{ marginTop: 2 }}>
+                      {t.destDetail.actionShiftDestDesc}
+                    </Typography>
+                  </View>
+                </Pressable>
+
+                {/* 4. If Mapped to Destination: Option to Move Back to Starter Pack */}
+                {activeItemMenu.plannedDestinationId && (
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.sheetActionItem,
+                      { backgroundColor: colors.surface.page },
+                      pressed && { opacity: 0.8 },
+                    ]}
+                    onPress={async () => {
+                      const item = activeItemMenu;
+                      setActiveItemMenu(null);
+                      try {
+                        await packingRepository.updateItemDestination(item.id, null);
+                        loadTripData();
+                      } catch {
+                        Alert.alert('Error', 'Failed to move to starter pack.');
+                      }
+                    }}
+                  >
+                    <View style={[styles.actionIconBox, { backgroundColor: 'rgba(139, 92, 246, 0.15)' }]}>
+                      <Ionicons name="briefcase-outline" size={20} color="#8B5CF6" />
+                    </View>
+                    <View style={styles.actionTextBox}>
+                      <Typography variant="label" color={colors.brand.navy}>
+                        {t.destDetail.actionReturnStarter}
+                      </Typography>
+                      <Typography variant="caption" color={colors.text.muted} style={{ marginTop: 2 }}>
+                        {t.destDetail.actionReturnStarterDesc}
+                      </Typography>
+                    </View>
+                  </Pressable>
+                )}
+
+                {/* 5. Delete Item */}
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.sheetActionItem,
+                    { backgroundColor: colors.surface.page },
+                    pressed && { opacity: 0.8 },
+                  ]}
+                  onPress={() => {
+                    const item = activeItemMenu;
+                    setActiveItemMenu(null);
+                    handleDeleteTripItem(item);
+                  }}
+                >
+                  <View style={[styles.actionIconBox, { backgroundColor: 'rgba(239, 68, 68, 0.15)' }]}>
+                    <Ionicons name="trash-outline" size={20} color={colors.status.error} />
+                  </View>
+                  <View style={styles.actionTextBox}>
+                    <Typography variant="label" color={colors.status.error}>
+                      {language === 'en' ? 'Delete Item' : 'Hapus Barang'}
+                    </Typography>
+                    <Typography variant="caption" color={colors.text.muted} style={{ marginTop: 2 }}>
+                      {language === 'en'
+                        ? 'Permanently remove from this trip checklist'
+                        : 'Hapus permanen dari daftar barang trip ini'}
+                    </Typography>
+                  </View>
+                </Pressable>
+              </View>
+
+              {/* Cancel Button */}
+              <Button
+                variant="secondary"
+                label={t.destDetail.closeMenu}
+                onPress={() => setActiveItemMenu(null)}
+                style={{ marginTop: 14 }}
+              />
+            </Pressable>
+          </Pressable>
         </Modal>
       )}
     </ScreenContainer>
@@ -1949,5 +2181,88 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderStyle: 'dashed',
     marginBottom: spacing[3],
+  },
+  itemMenuBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sheetBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'flex-end',
+  },
+  actionSheetCard: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 28,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 12,
+  },
+  sheetHandleWrap: {
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  sheetHandle: {
+    width: 44,
+    height: 4,
+    borderRadius: 2,
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 6,
+    marginBottom: 10,
+  },
+  sheetHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  sheetIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sheetCloseBtn: {
+    padding: 4,
+    marginLeft: 8,
+  },
+  sheetDivider: {
+    height: StyleSheet.hairlineWidth,
+    marginVertical: 10,
+  },
+  sheetActionsList: {
+    gap: 8,
+  },
+  sheetActionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+  },
+  actionIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  actionTextBox: {
+    flex: 1,
   },
 });

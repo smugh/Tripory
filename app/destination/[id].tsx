@@ -55,6 +55,7 @@ export default function DestinationDetailScreen() {
 
   // Modals state
   const [shiftModalItem, setShiftModalItem] = useState<TripItemRecord | null>(null);
+  const [activeItemMenu, setActiveItemMenu] = useState<TripItemRecord | null>(null);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
 
   const loadData = useCallback(async () => {
@@ -209,13 +210,17 @@ export default function DestinationDetailScreen() {
   const unassignedItems = tripItems.filter((item) => item.plannedDestinationId !== id);
 
   // Shift item destination
-  const handleShiftDestination = async (targetDestId: string | null) => {
-    if (!shiftModalItem) return;
+  const handleShiftDestination = async (
+    targetDestId: string | null,
+    specificItem?: TripItemRecord | null
+  ) => {
+    const itemToMove = specificItem || shiftModalItem;
+    if (!itemToMove) return;
     try {
-      await packingRepository.updateItemDestination(shiftModalItem.id, targetDestId);
+      await packingRepository.updateItemDestination(itemToMove.id, targetDestId);
       setTripItems((prev) =>
         prev.map((it) =>
-          it.id === shiftModalItem.id ? { ...it, plannedDestinationId: targetDestId } : it
+          it.id === itemToMove.id ? { ...it, plannedDestinationId: targetDestId } : it
         )
       );
       setShiftModalItem(null);
@@ -396,36 +401,20 @@ export default function DestinationDetailScreen() {
                       </View>
                     </View>
 
-                    {/* Action Buttons for this item */}
-                    <View style={styles.itemActions}>
-                      {/* State switch buttons */}
-                      {!isUsed && !isReturned && (
-                        <Pressable
-                          style={[
-                            styles.itemActionBtn,
-                            { backgroundColor: isPacked ? colors.status.success : colors.brand.blue },
-                          ]}
-                          onPress={() =>
-                            handleToggleItemState(item, isPacked ? 'used' : 'packed')
-                          }
-                        >
-                          <Typography variant="caption" color="#FFFFFF" style={styles.btnLabel}>
-                            {isPacked ? t.destDetail.markUsedBtn : t.destDetail.markPackedBtn}
-                          </Typography>
-                        </Pressable>
-                      )}
-
-                      {/* Shift Stop Button */}
-                      <Pressable
-                        style={[styles.itemActionBtnOutline, { borderColor: colors.border.strong }]}
-                        onPress={() => setShiftModalItem(item)}
-                      >
-                        <Ionicons name="swap-horizontal" size={14} color={colors.text.primary} />
-                        <Typography variant="caption" color={colors.text.primary} style={{ marginLeft: 3 }}>
-                          {t.destDetail.shiftStopBtn}
-                        </Typography>
-                      </Pressable>
-                    </View>
+                    {/* 3-Dots Burger / Kebab Action Button */}
+                    <Pressable
+                      style={[
+                        styles.itemMenuBtn,
+                        {
+                          backgroundColor: colors.surface.card,
+                          borderColor: colors.border.default,
+                        },
+                      ]}
+                      onPress={() => setActiveItemMenu(item)}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <Ionicons name="ellipsis-vertical" size={18} color={colors.text.primary} />
+                    </Pressable>
                   </View>
                 );
               })}
@@ -710,6 +699,202 @@ export default function DestinationDetailScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* MODAL 3: Item Context Actions (3-Dots Kebab Menu) */}
+      {activeItemMenu && (
+        <Modal
+          transparent
+          animationType="fade"
+          visible={!!activeItemMenu}
+          onRequestClose={() => setActiveItemMenu(null)}
+        >
+          <Pressable
+            style={styles.sheetBackdrop}
+            onPress={() => setActiveItemMenu(null)}
+          >
+            <Pressable
+              style={[
+                styles.actionSheetCard,
+                { backgroundColor: colors.surface.card, borderColor: colors.border.strong },
+              ]}
+              onPress={(e) => e.stopPropagation()}
+            >
+              {/* Drag Handle Indicator */}
+              <View style={styles.sheetHandleWrap}>
+                <View style={[styles.sheetHandle, { backgroundColor: colors.border.strong }]} />
+              </View>
+
+              {/* Sheet Header: Item Info */}
+              <View style={styles.sheetHeader}>
+                <View style={styles.sheetHeaderLeft}>
+                  <View style={[styles.sheetIconCircle, { backgroundColor: colors.surface.page }]}>
+                    <Ionicons name="bag-handle" size={20} color={colors.brand.coral} />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Typography variant="h3" color={colors.brand.navy} numberOfLines={1}>
+                      {activeItemMenu.customName}
+                    </Typography>
+                    <Typography variant="caption" color={colors.text.muted}>
+                      {activeItemMenu.category} • Qty: {activeItemMenu.quantity}
+                    </Typography>
+                  </View>
+                </View>
+                <Pressable
+                  onPress={() => setActiveItemMenu(null)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  style={styles.sheetCloseBtn}
+                >
+                  <Ionicons name="close" size={20} color={colors.text.muted} />
+                </Pressable>
+              </View>
+
+              <View style={[styles.sheetDivider, { backgroundColor: colors.border.default }]} />
+
+              {/* Action Options */}
+              <View style={styles.sheetActionsList}>
+                {/* 1. Toggle Packing Status */}
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.sheetActionItem,
+                    { backgroundColor: colors.surface.page },
+                    pressed && { opacity: 0.8 },
+                  ]}
+                  onPress={() => {
+                    const isPackedOrUsed =
+                      activeItemMenu.state === 'packed' || activeItemMenu.state === 'used';
+                    handleToggleItemState(
+                      activeItemMenu,
+                      isPackedOrUsed ? 'planned' : 'packed'
+                    );
+                    setActiveItemMenu(null);
+                  }}
+                >
+                  <View style={[styles.actionIconBox, { backgroundColor: `${colors.brand.blue}15` }]}>
+                    <Ionicons
+                      name={
+                        activeItemMenu.state === 'packed' || activeItemMenu.state === 'used'
+                          ? 'refresh-outline'
+                          : 'cube-outline'
+                      }
+                      size={20}
+                      color={colors.brand.blue}
+                    />
+                  </View>
+                  <View style={styles.actionTextBox}>
+                    <Typography variant="label" color={colors.brand.navy}>
+                      {activeItemMenu.state === 'packed' || activeItemMenu.state === 'used'
+                        ? t.destDetail.actionMarkUnpacked
+                        : t.destDetail.actionMarkPacked}
+                    </Typography>
+                    <Typography variant="caption" color={colors.text.muted} style={{ marginTop: 2 }}>
+                      {activeItemMenu.state === 'packed' || activeItemMenu.state === 'used'
+                        ? t.destDetail.actionMarkUnpackedDesc
+                        : t.destDetail.actionMarkPackedDesc}
+                    </Typography>
+                  </View>
+                </Pressable>
+
+                {/* 2. Toggle In-Trip Usage Status */}
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.sheetActionItem,
+                    { backgroundColor: colors.surface.page },
+                    pressed && { opacity: 0.8 },
+                  ]}
+                  onPress={() => {
+                    const isUsed = activeItemMenu.state === 'used';
+                    handleToggleItemState(activeItemMenu, isUsed ? 'packed' : 'used');
+                    setActiveItemMenu(null);
+                  }}
+                >
+                  <View style={[styles.actionIconBox, { backgroundColor: `${colors.status.success}15` }]}>
+                    <Ionicons
+                      name={
+                        activeItemMenu.state === 'used'
+                          ? 'arrow-undo-outline'
+                          : 'checkmark-done-circle-outline'
+                      }
+                      size={20}
+                      color={colors.status.success}
+                    />
+                  </View>
+                  <View style={styles.actionTextBox}>
+                    <Typography variant="label" color={colors.brand.navy}>
+                      {activeItemMenu.state === 'used'
+                        ? t.destDetail.actionResetUsed
+                        : t.destDetail.actionMarkUsed}
+                    </Typography>
+                    <Typography variant="caption" color={colors.text.muted} style={{ marginTop: 2 }}>
+                      {activeItemMenu.state === 'used'
+                        ? t.destDetail.actionResetUsedDesc
+                        : t.destDetail.actionMarkUsedDesc}
+                    </Typography>
+                  </View>
+                </Pressable>
+
+                {/* 3. Shift Destination */}
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.sheetActionItem,
+                    { backgroundColor: colors.surface.page },
+                    pressed && { opacity: 0.8 },
+                  ]}
+                  onPress={() => {
+                    const item = activeItemMenu;
+                    setActiveItemMenu(null);
+                    setShiftModalItem(item);
+                  }}
+                >
+                  <View style={[styles.actionIconBox, { backgroundColor: `${colors.brand.coral}15` }]}>
+                    <Ionicons name="swap-horizontal" size={20} color={colors.brand.coral} />
+                  </View>
+                  <View style={styles.actionTextBox}>
+                    <Typography variant="label" color={colors.brand.navy}>
+                      {t.destDetail.actionShiftDest}
+                    </Typography>
+                    <Typography variant="caption" color={colors.text.muted} style={{ marginTop: 2 }}>
+                      {t.destDetail.actionShiftDestDesc}
+                    </Typography>
+                  </View>
+                </Pressable>
+
+                {/* 4. Move to Starter Pack */}
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.sheetActionItem,
+                    { backgroundColor: colors.surface.page },
+                    pressed && { opacity: 0.8 },
+                  ]}
+                  onPress={() => {
+                    handleShiftDestination(null, activeItemMenu);
+                    setActiveItemMenu(null);
+                  }}
+                >
+                  <View style={[styles.actionIconBox, { backgroundColor: 'rgba(139, 92, 246, 0.15)' }]}>
+                    <Ionicons name="briefcase-outline" size={20} color="#8B5CF6" />
+                  </View>
+                  <View style={styles.actionTextBox}>
+                    <Typography variant="label" color={colors.brand.navy}>
+                      {t.destDetail.actionReturnStarter}
+                    </Typography>
+                    <Typography variant="caption" color={colors.text.muted} style={{ marginTop: 2 }}>
+                      {t.destDetail.actionReturnStarterDesc}
+                    </Typography>
+                  </View>
+                </Pressable>
+              </View>
+
+              {/* Cancel Button */}
+              <Button
+                variant="secondary"
+                label={t.destDetail.closeMenu}
+                onPress={() => setActiveItemMenu(null)}
+                style={{ marginTop: 14 }}
+              />
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
     </ScreenContainer>
   );
 }
@@ -844,49 +1029,36 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 10,
-    borderRadius: 10,
+    padding: 12,
+    borderRadius: 12,
     borderWidth: 1,
   },
   itemMainInfo: {
     flex: 1,
+    paddingRight: 12,
   },
   itemMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 3,
-    gap: 6,
+    marginTop: 4,
+    gap: 8,
   },
   statePill: {
-    paddingHorizontal: 6,
+    paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 4,
+    borderRadius: 6,
   },
   statePillText: {
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  itemActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  itemActionBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  btnLabel: {
-    fontWeight: '700',
     fontSize: 11,
+    fontWeight: '700',
   },
-  itemActionBtnOutline: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  itemMenuBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     borderWidth: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   emptyBox: {
     alignItems: 'center',
@@ -1004,5 +1176,80 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     marginBottom: 8,
+  },
+  sheetBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'flex-end',
+  },
+  actionSheetCard: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 28,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 12,
+  },
+  sheetHandleWrap: {
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  sheetHandle: {
+    width: 44,
+    height: 4,
+    borderRadius: 2,
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 6,
+    marginBottom: 10,
+  },
+  sheetHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  sheetIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sheetCloseBtn: {
+    padding: 4,
+    marginLeft: 8,
+  },
+  sheetDivider: {
+    height: StyleSheet.hairlineWidth,
+    marginVertical: 10,
+  },
+  sheetActionsList: {
+    gap: 8,
+  },
+  sheetActionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+  },
+  actionIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  actionTextBox: {
+    flex: 1,
   },
 });

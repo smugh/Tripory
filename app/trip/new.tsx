@@ -76,14 +76,6 @@ export default function NewTripScreen() {
     }
   };
 
-  const handleAddDaysToEnd = (daysToAdd: number) => {
-    const s = new Date(startDate);
-    if (!isNaN(s.getTime())) {
-      const target = new Date(s.getTime() + daysToAdd * 24 * 60 * 60 * 1000);
-      setEndDate(formatDateYmd(target));
-    }
-  };
-
   const handleCreate = async () => {
     if (!name.trim() || !destination.trim()) {
       Alert.alert(language === 'en' ? 'Required' : 'Perhatian', t.newTrip.alertRequired);
@@ -157,37 +149,28 @@ export default function NewTripScreen() {
           </Typography>
         </View>
 
-        {/* SECTION 1: TEMPLATE PERJALANAN INSTAN (DEFAULT MINIMIZED) */}
-        <View style={styles.sectionWrap}>
+        {/* SECTION 1: TEMPLATE PERJALANAN (MINIMALIS & DEFAULT HIDDEN) */}
+        <View style={styles.sectionWrapMinimal}>
           <Pressable
             style={[
-              styles.templateToggleHeader,
+              styles.templateMinimalBtn,
               { backgroundColor: themeColors.surface.card, borderColor: themeColors.border.default },
             ]}
             onPress={() => setIsTemplateExpanded((prev) => !prev)}
           >
             <View style={styles.templateHeaderLeft}>
-              <View style={[styles.templateIconCircle, { backgroundColor: isDarkMode ? '#1E293B' : '#FFF0EE' }]}>
-                <Ionicons name="sparkles" size={16} color={themeColors.brand.coral} />
-              </View>
-              <View style={{ flex: 1, marginLeft: spacing[2] }}>
-                <Typography variant="label" color={themeColors.brand.navy} style={{ fontWeight: '700' }}>
-                  {t.newTrip.step1Title}
-                </Typography>
-                {!isTemplateExpanded && selectedPreset && (
-                  <Typography variant="caption" color={themeColors.brand.coral} style={{ marginTop: 2, fontWeight: '600' }}>
-                    {format(t.newTrip.activeTemplateNotice, { name: selectedPreset.title, duration: `${selectedPreset.durationDays}D` })}
-                  </Typography>
-                )}
-              </View>
+              <Ionicons name="sparkles" size={14} color={themeColors.brand.coral} />
+              <Typography variant="caption" color={themeColors.brand.navy} style={{ fontWeight: '700', marginLeft: 6 }}>
+                {language === 'en' ? 'Quick Templates (Optional)' : 'Pilih dari Template Kilat (Opsional)'}
+              </Typography>
             </View>
             <View style={styles.templateHeaderRight}>
-              <Typography variant="caption" color={themeColors.brand.coral} style={{ fontWeight: '700', marginRight: 4 }}>
-                {isTemplateExpanded ? t.newTrip.hideTemplates : t.newTrip.showTemplates}
+              <Typography variant="caption" color={themeColors.brand.coral} style={{ fontWeight: '600', marginRight: 4, fontSize: 11 }}>
+                {isTemplateExpanded ? (language === 'en' ? 'Hide' : 'Tutup') : (language === 'en' ? 'Browse' : 'Pilih')}
               </Typography>
               <Ionicons
                 name={isTemplateExpanded ? 'chevron-up' : 'chevron-down'}
-                size={18}
+                size={14}
                 color={themeColors.brand.coral}
               />
             </View>
@@ -293,82 +276,11 @@ export default function NewTripScreen() {
             </View>
             <View style={styles.changeDatePill}>
               <Typography variant="caption" color={themeColors.brand.coral} style={{ fontWeight: '700' }}>
-                {language === 'en' ? 'Pick Date' : 'Pilih'}
+                {language === 'en' ? 'Pick Date' : 'Pilih Tanggal'}
               </Typography>
-              <Ionicons name="chevron-forward" size={14} color={themeColors.brand.coral} style={{ marginLeft: 2 }} />
+              <Ionicons name="calendar-outline" size={14} color={themeColors.brand.coral} style={{ marginLeft: 4 }} />
             </View>
           </Pressable>
-
-          {/* Quick Shortcuts for Departure Date */}
-          <View style={styles.dateShortcutsRow}>
-            <Pressable
-              style={[
-                styles.dateShortcutPill,
-                { backgroundColor: themeColors.surface.muted, borderColor: themeColors.border.default },
-                startDate === formatDateYmd(yesterday) && { backgroundColor: themeColors.brand.navy, borderColor: themeColors.brand.navy },
-              ]}
-              onPress={() => handleStartDateSelect(formatDateYmd(yesterday))}
-            >
-              <Typography
-                variant="caption"
-                color={startDate === formatDateYmd(yesterday) ? '#FFFFFF' : themeColors.text.secondary}
-                style={styles.pillText}
-              >
-                {t.newTrip.yesterday}
-              </Typography>
-            </Pressable>
-
-            <Pressable
-              style={[
-                styles.dateShortcutPill,
-                { backgroundColor: themeColors.surface.muted, borderColor: themeColors.border.default },
-                startDate === formatDateYmd(now) && { backgroundColor: themeColors.brand.navy, borderColor: themeColors.brand.navy },
-              ]}
-              onPress={() => handleStartDateSelect(formatDateYmd(now))}
-            >
-              <Typography
-                variant="caption"
-                color={startDate === formatDateYmd(now) ? '#FFFFFF' : themeColors.text.secondary}
-                style={styles.pillText}
-              >
-                {t.newTrip.today}
-              </Typography>
-            </Pressable>
-
-            <Pressable
-              style={[
-                styles.dateShortcutPill,
-                { backgroundColor: themeColors.surface.muted, borderColor: themeColors.border.default },
-                startDate === formatDateYmd(tomorrow) && { backgroundColor: themeColors.brand.navy, borderColor: themeColors.brand.navy },
-              ]}
-              onPress={() => handleStartDateSelect(formatDateYmd(tomorrow))}
-            >
-              <Typography
-                variant="caption"
-                color={startDate === formatDateYmd(tomorrow) ? '#FFFFFF' : themeColors.text.secondary}
-                style={styles.pillText}
-              >
-                {t.newTrip.tomorrow}
-              </Typography>
-            </Pressable>
-
-            <Pressable
-              style={[
-                styles.dateShortcutPill,
-                { backgroundColor: themeColors.surface.muted, borderColor: themeColors.border.default },
-                startDate === formatDateYmd(nextWeekend) && { backgroundColor: themeColors.brand.navy, borderColor: themeColors.brand.navy },
-              ]}
-              onPress={() => handleStartDateSelect(formatDateYmd(nextWeekend))}
-            >
-              <Typography
-                variant="caption"
-                color={startDate === formatDateYmd(nextWeekend) ? '#FFFFFF' : themeColors.text.secondary}
-                style={styles.pillText}
-              >
-                {t.newTrip.nextWeekend}
-              </Typography>
-            </Pressable>
-          </View>
 
           {/* END DATE */}
           <Typography variant="label" color={themeColors.text.primary} style={[styles.fieldLabel, { marginTop: spacing[3] }]}>
@@ -386,82 +298,11 @@ export default function NewTripScreen() {
             </View>
             <View style={styles.changeDatePill}>
               <Typography variant="caption" color={themeColors.brand.coral} style={{ fontWeight: '700' }}>
-                {language === 'en' ? 'Pick Date' : 'Pilih'}
+                {language === 'en' ? 'Pick Date' : 'Pilih Tanggal'}
               </Typography>
-              <Ionicons name="chevron-forward" size={14} color={themeColors.brand.coral} style={{ marginLeft: 2 }} />
+              <Ionicons name="calendar-outline" size={14} color={themeColors.brand.coral} style={{ marginLeft: 4 }} />
             </View>
           </Pressable>
-
-          {/* Quick Shortcuts for End Date */}
-          <View style={styles.dateShortcutsRow}>
-            <Pressable
-              style={[
-                styles.dateShortcutPill,
-                { backgroundColor: themeColors.surface.muted, borderColor: themeColors.border.default },
-                endDate === startDate && { backgroundColor: themeColors.brand.navy, borderColor: themeColors.brand.navy },
-              ]}
-              onPress={() => handleAddDaysToEnd(0)}
-            >
-              <Typography
-                variant="caption"
-                color={endDate === startDate ? '#FFFFFF' : themeColors.text.secondary}
-                style={styles.pillText}
-              >
-                {t.newTrip.sameDay}
-              </Typography>
-            </Pressable>
-
-            <Pressable
-              style={[
-                styles.dateShortcutPill,
-                { backgroundColor: themeColors.surface.muted, borderColor: themeColors.border.default },
-                endDate === computeEndDate(startDate, 2) && { backgroundColor: themeColors.brand.navy, borderColor: themeColors.brand.navy },
-              ]}
-              onPress={() => handleAddDaysToEnd(1)}
-            >
-              <Typography
-                variant="caption"
-                color={endDate === computeEndDate(startDate, 2) ? '#FFFFFF' : themeColors.text.secondary}
-                style={styles.pillText}
-              >
-                {t.newTrip.plus1Day}
-              </Typography>
-            </Pressable>
-
-            <Pressable
-              style={[
-                styles.dateShortcutPill,
-                { backgroundColor: themeColors.surface.muted, borderColor: themeColors.border.default },
-                endDate === computeEndDate(startDate, 3) && { backgroundColor: themeColors.brand.navy, borderColor: themeColors.brand.navy },
-              ]}
-              onPress={() => handleAddDaysToEnd(2)}
-            >
-              <Typography
-                variant="caption"
-                color={endDate === computeEndDate(startDate, 3) ? '#FFFFFF' : themeColors.text.secondary}
-                style={styles.pillText}
-              >
-                {t.newTrip.plus2Days}
-              </Typography>
-            </Pressable>
-
-            <Pressable
-              style={[
-                styles.dateShortcutPill,
-                { backgroundColor: themeColors.surface.muted, borderColor: themeColors.border.default },
-                endDate === computeEndDate(startDate, 4) && { backgroundColor: themeColors.brand.navy, borderColor: themeColors.brand.navy },
-              ]}
-              onPress={() => handleAddDaysToEnd(3)}
-            >
-              <Typography
-                variant="caption"
-                color={endDate === computeEndDate(startDate, 4) ? '#FFFFFF' : themeColors.text.secondary}
-                style={styles.pillText}
-              >
-                {t.newTrip.plus3Days}
-              </Typography>
-            </Pressable>
-          </View>
 
           {/* TRIP DURATION (VIEW ONLY RESPONSE FROM START DATE AND BACKDATE) */}
           <Typography variant="label" color={themeColors.text.primary} style={[styles.fieldLabel, { marginTop: spacing[3] }]}>
@@ -583,29 +424,21 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     letterSpacing: -0.3,
   },
-  sectionWrap: {
-    marginBottom: spacing[4],
+  sectionWrapMinimal: {
+    marginBottom: spacing[3],
   },
-  templateToggleHeader: {
+  templateMinimalBtn: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: spacing[3],
-    borderRadius: radius.lg,
+    paddingHorizontal: spacing[3],
+    paddingVertical: 10,
+    borderRadius: radius.md,
     borderWidth: 1,
-    marginBottom: spacing[2],
   },
   templateHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
-  },
-  templateIconCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   templateHeaderRight: {
     flexDirection: 'row',
@@ -661,27 +494,6 @@ const styles = StyleSheet.create({
   fieldLabel: {
     marginTop: spacing[2],
     marginBottom: spacing[2],
-  },
-  dateShortcutsRow: {
-    flexDirection: 'row',
-    gap: spacing[2],
-    marginBottom: spacing[3],
-  },
-  dateShortcutPill: {
-    flex: 1,
-    backgroundColor: colors.surface.muted,
-    paddingVertical: 8,
-    borderRadius: radius.md,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border.default,
-  },
-  dateShortcutActive: {
-    backgroundColor: colors.brand.navy,
-    borderColor: colors.brand.navy,
-  },
-  pillText: {
-    fontWeight: '700',
   },
   dateInputSelector: {
     flexDirection: 'row',

@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Modal,
   StyleSheet,
   Pressable,
-  ScrollView,
   TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -45,6 +44,14 @@ export const DatePickerModal: React.FC<DatePickerModalProps> = ({
   onClose,
 }) => {
   const themeColors = useThemeColors();
+
+  // Helper formatting 2 digits
+  const pad2 = (n: number) => (n < 10 ? `0${n}` : `${n}`);
+
+  // Build current date ISO
+  const buildDateIso = (year: number, month: number, day: number) => {
+    return `${year}-${pad2(month + 1)}-${pad2(day)}`;
+  };
 
   // Parse initial date
   const parseDateSafe = (val: string) => {
@@ -100,22 +107,32 @@ export const DatePickerModal: React.FC<DatePickerModalProps> = ({
     }
   };
 
-  // Quick year stepper
-  const handleYearStep = (delta: number) => {
-    setCurrentYear((y) => y + delta);
-  };
-
-  // Helper formatting 2 digits
-  const pad2 = (n: number) => (n < 10 ? `0${n}` : `${n}`);
-
-  // Build current date ISO
-  const buildDateIso = (year: number, month: number, day: number) => {
-    return `${year}-${pad2(month + 1)}-${pad2(day)}`;
-  };
-
-  // Generate days in month
+  // Generate days in month & first day of week
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
   const firstDayOfWeek = new Date(currentYear, currentMonth, 1).getDay(); // 0 is Sunday
+
+  // Partition calendar days into explicit 7-day rows to strictly avoid layout overflow
+  const weeks = useMemo(() => {
+    const list: (number | null)[][] = [];
+    let week: (number | null)[] = [];
+    for (let i = 0; i < firstDayOfWeek; i++) {
+      week.push(null);
+    }
+    for (let day = 1; day <= daysInMonth; day++) {
+      week.push(day);
+      if (week.length === 7) {
+        list.push(week);
+        week = [];
+      }
+    }
+    if (week.length > 0) {
+      while (week.length < 7) {
+        week.push(null);
+      }
+      list.push(week);
+    }
+    return list;
+  }, [firstDayOfWeek, daysInMonth]);
 
   // Handle day selection
   const handleDayPress = (day: number) => {
@@ -124,8 +141,21 @@ export const DatePickerModal: React.FC<DatePickerModalProps> = ({
     setManualText(iso);
   };
 
+  // Handle manual typing with live calendar sync
+  const handleManualTextChange = (text: string) => {
+    setManualText(text);
+    const parts = text.split('-');
+    if (parts.length === 3) {
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10) - 1;
+      const d = parseInt(parts[2], 10);
+      if (!isNaN(y) && y >= 1970 && y <= 2100) setCurrentYear(y);
+      if (!isNaN(m) && m >= 0 && m <= 11) setCurrentMonth(m);
+      if (!isNaN(d) && d >= 1 && d <= 31) setSelectedDay(d);
+    }
+  };
+
   const handleApply = () => {
-    // If manual input is a valid YYYY-MM-DD
     const regex = /^\d{4}-\d{2}-\d{2}$/;
     if (regex.test(manualText.trim())) {
       onConfirm(manualText.trim());
@@ -155,7 +185,7 @@ export const DatePickerModal: React.FC<DatePickerModalProps> = ({
                 {title}
               </Typography>
               <Typography variant="caption" color={themeColors.text.muted}>
-                {language === 'en' ? 'Backdate selection supported' : 'Mendukung tanggal lampau (backdate)'}
+                {language === 'en' ? 'Backdate supported' : 'Mendukung tanggal lampau (backdate)'}
               </Typography>
             </View>
             <Pressable onPress={onClose} style={styles.closeBtn} hitSlop={12}>
@@ -163,89 +193,100 @@ export const DatePickerModal: React.FC<DatePickerModalProps> = ({
             </Pressable>
           </View>
 
-          {/* Year & Month Stepper */}
-          <View style={[styles.stepperContainer, { backgroundColor: themeColors.surface.muted, borderColor: themeColors.border.default }]}>
-            {/* Month row */}
-            <View style={styles.navRow}>
-              <Pressable style={styles.navBtn} onPress={handlePrevMonth}>
-                <Ionicons name="chevron-back" size={20} color={themeColors.brand.navy} />
+          {/* Month & Year Selectors (Side-by-side, no -1 Yr buttons) */}
+          <View style={styles.selectorsRow}>
+            {/* Month Stepper */}
+            <View style={[styles.selectorBox, { backgroundColor: themeColors.surface.muted, borderColor: themeColors.border.default, flex: 1.3 }]}>
+              <Pressable style={styles.arrowBtn} onPress={handlePrevMonth} hitSlop={8}>
+                <Ionicons name="chevron-back" size={16} color={themeColors.brand.navy} />
               </Pressable>
-              <Typography variant="label" color={themeColors.brand.navy} style={styles.monthLabel}>
-                {monthNames[currentMonth]} {currentYear}
+              <Typography variant="label" color={themeColors.brand.navy} style={styles.selectorLabel} numberOfLines={1}>
+                {monthNames[currentMonth]}
               </Typography>
-              <Pressable style={styles.navBtn} onPress={handleNextMonth}>
-                <Ionicons name="chevron-forward" size={20} color={themeColors.brand.navy} />
+              <Pressable style={styles.arrowBtn} onPress={handleNextMonth} hitSlop={8}>
+                <Ionicons name="chevron-forward" size={16} color={themeColors.brand.navy} />
               </Pressable>
             </View>
 
-            {/* Quick Year Jump */}
-            <View style={styles.yearJumpRow}>
-              <Pressable style={styles.yearPill} onPress={() => handleYearStep(-1)}>
-                <Typography variant="caption" color={themeColors.text.secondary} style={styles.yearPillText}>
-                  -1 {language === 'en' ? 'Yr' : 'Thn'}
-                </Typography>
+            {/* Year Stepper */}
+            <View style={[styles.selectorBox, { backgroundColor: themeColors.surface.muted, borderColor: themeColors.border.default, flex: 1 }]}>
+              <Pressable style={styles.arrowBtn} onPress={() => setCurrentYear((y) => y - 1)} hitSlop={8}>
+                <Ionicons name="chevron-back" size={16} color={themeColors.brand.navy} />
               </Pressable>
-              <Pressable style={styles.yearPill} onPress={() => handleYearStep(1)}>
-                <Typography variant="caption" color={themeColors.text.secondary} style={styles.yearPillText}>
-                  +1 {language === 'en' ? 'Yr' : 'Thn'}
-                </Typography>
+              <TextInput
+                style={[styles.yearInputText, { color: themeColors.brand.navy }]}
+                value={String(currentYear)}
+                keyboardType="number-pad"
+                maxLength={4}
+                onChangeText={(t) => {
+                  const parsed = parseInt(t, 10);
+                  if (!isNaN(parsed)) setCurrentYear(parsed);
+                }}
+              />
+              <Pressable style={styles.arrowBtn} onPress={() => setCurrentYear((y) => y + 1)} hitSlop={8}>
+                <Ionicons name="chevron-forward" size={16} color={themeColors.brand.navy} />
               </Pressable>
             </View>
           </View>
 
           {/* Weekday headers */}
-          <View style={styles.weekdaysRow}>
+          <View style={styles.weekRow}>
             {dayNames.map((d, idx) => (
               <View key={d + idx} style={styles.dayCol}>
-                <Typography variant="caption" color={idx === 0 ? colors.status.error : themeColors.text.muted} style={styles.weekdayText}>
+                <Typography
+                  variant="caption"
+                  color={idx === 0 ? colors.status.error : themeColors.text.muted}
+                  style={styles.weekdayText}
+                >
                   {d}
                 </Typography>
               </View>
             ))}
           </View>
 
-          {/* Days Grid */}
-          <View style={styles.daysGrid}>
-            {/* Blank offset days */}
-            {Array.from({ length: firstDayOfWeek }).map((_, i) => (
-              <View key={`blank-${i}`} style={styles.dayCol} />
+          {/* Calendar Days Matrix (Row by Row) */}
+          <View style={styles.calendarBody}>
+            {weeks.map((week, wIdx) => (
+              <View key={`week-${wIdx}`} style={styles.weekRow}>
+                {week.map((day, dIdx) => {
+                  if (day === null) {
+                    return <View key={`blank-${wIdx}-${dIdx}`} style={styles.dayCol} />;
+                  }
+
+                  const isSelected = day === selectedDay;
+                  const iso = buildDateIso(currentYear, currentMonth, day);
+                  const isDisabled = minDate ? iso < minDate : false;
+
+                  return (
+                    <View key={`day-${day}`} style={styles.dayCol}>
+                      <Pressable
+                        disabled={isDisabled}
+                        style={[
+                          styles.dayButton,
+                          isSelected && { backgroundColor: themeColors.brand.coral },
+                          isDisabled && { opacity: 0.25 },
+                        ]}
+                        onPress={() => handleDayPress(day)}
+                      >
+                        <Typography
+                          variant="caption"
+                          color={isSelected ? '#FFFFFF' : isDisabled ? themeColors.text.muted : themeColors.text.primary}
+                          style={{ fontWeight: isSelected ? '700' : '500', fontSize: 13 }}
+                        >
+                          {day}
+                        </Typography>
+                      </Pressable>
+                    </View>
+                  );
+                })}
+              </View>
             ))}
-
-            {/* Days in Month */}
-            {Array.from({ length: daysInMonth }).map((_, i) => {
-              const day = i + 1;
-              const isSelected = day === selectedDay;
-              const iso = buildDateIso(currentYear, currentMonth, day);
-              const isDisabled = minDate ? iso < minDate : false;
-
-              return (
-                <View key={`day-${day}`} style={styles.dayCol}>
-                  <Pressable
-                    disabled={isDisabled}
-                    style={[
-                      styles.dayButton,
-                      isSelected && { backgroundColor: themeColors.brand.coral },
-                      isDisabled && { opacity: 0.3 },
-                    ]}
-                    onPress={() => handleDayPress(day)}
-                  >
-                    <Typography
-                      variant="caption"
-                      color={isSelected ? '#FFFFFF' : isDisabled ? themeColors.text.muted : themeColors.text.primary}
-                      style={{ fontWeight: isSelected ? '700' : '500' }}
-                    >
-                      {day}
-                    </Typography>
-                  </Pressable>
-                </View>
-              );
-            })}
           </View>
 
           {/* Manual Input Fallback */}
           <View style={[styles.manualInputBox, { borderTopColor: themeColors.border.muted }]}>
             <Typography variant="caption" color={themeColors.text.muted} style={{ marginBottom: 4 }}>
-              {language === 'en' ? 'Or edit date directly (YYYY-MM-DD):' : 'Atau ketik tanggal (YYYY-MM-DD):'}
+              {language === 'en' ? 'Or edit date (YYYY-MM-DD):' : 'Atau ketik tanggal (YYYY-MM-DD):'}
             </Typography>
             <TextInput
               style={[
@@ -257,7 +298,7 @@ export const DatePickerModal: React.FC<DatePickerModalProps> = ({
                 },
               ]}
               value={manualText}
-              onChangeText={setManualText}
+              onChangeText={handleManualTextChange}
               placeholder="YYYY-MM-DD"
               placeholderTextColor={themeColors.text.muted}
             />
@@ -296,7 +337,7 @@ const styles = StyleSheet.create({
   },
   card: {
     width: '100%',
-    maxWidth: 380,
+    maxWidth: 360,
     borderRadius: radius.xl,
     padding: spacing[4],
     shadowColor: '#000',
@@ -317,47 +358,41 @@ const styles = StyleSheet.create({
   closeBtn: {
     padding: 2,
   },
-  stepperContainer: {
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    paddingVertical: spacing[2],
-    paddingHorizontal: spacing[3],
+  selectorsRow: {
+    flexDirection: 'row',
+    gap: spacing[2],
     marginBottom: spacing[3],
   },
-  navRow: {
+  selectorBox: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 8,
+    paddingVertical: 7,
+    borderRadius: radius.md,
+    borderWidth: 1,
   },
-  navBtn: {
-    padding: spacing[1],
+  arrowBtn: {
+    padding: 4,
   },
-  monthLabel: {
+  selectorLabel: {
     fontWeight: '700',
-    fontSize: 15,
+    fontSize: 13,
+    textAlign: 'center',
   },
-  yearJumpRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: spacing[2],
-    marginTop: spacing[2],
-    paddingTop: spacing[2],
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0, 0, 0, 0.05)',
+  yearInputText: {
+    fontWeight: '700',
+    fontSize: 14,
+    textAlign: 'center',
+    padding: 0,
+    minWidth: 44,
   },
-  yearPill: {
-    paddingHorizontal: spacing[3],
-    paddingVertical: 3,
-    backgroundColor: 'rgba(0, 0, 0, 0.06)',
-    borderRadius: radius.full,
-  },
-  yearPillText: {
-    fontWeight: '600',
-    fontSize: 11,
-  },
-  weekdaysRow: {
-    flexDirection: 'row',
+  calendarBody: {
     marginBottom: spacing[2],
+  },
+  weekRow: {
+    flexDirection: 'row',
+    marginBottom: 4,
   },
   dayCol: {
     flex: 1,
@@ -369,11 +404,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 11,
   },
-  daysGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: spacing[2],
-  },
   dayButton: {
     width: 32,
     height: 32,
@@ -382,12 +412,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   manualInputBox: {
-    paddingTop: spacing[3],
+    paddingTop: spacing[2],
     marginTop: spacing[2],
     borderTopWidth: 1,
   },
   dateTextInput: {
-    height: 40,
+    height: 38,
     borderRadius: radius.md,
     borderWidth: 1,
     paddingHorizontal: spacing[3],
@@ -396,6 +426,6 @@ const styles = StyleSheet.create({
   },
   actionRow: {
     flexDirection: 'row',
-    marginTop: spacing[4],
+    marginTop: spacing[3],
   },
 });

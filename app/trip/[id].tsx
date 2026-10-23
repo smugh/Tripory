@@ -19,7 +19,6 @@ import { DestinationRecord } from '@/db/schema/destinations';
 import { TripItemRecord } from '@/db/schema/trip-items';
 import { MomentRecord } from '@/db/schema/moments';
 import { formatDateRange, formatTripDurationLabel } from '@/core/utils';
-import { getQuickPackBundles, QuickBundle } from '@/core/constants';
 import { useUIStore } from '@/stores/ui-store';
 import { useI18n } from '@/core/i18n';
 
@@ -111,33 +110,6 @@ export default function TripDetailScreen() {
       setVisitingModalDest(dest);
       const mapped = items.filter((i) => i.plannedDestinationId === dest.id && i.state !== 'used');
       setSelectedUsedItemIds(mapped.map((i) => i.id));
-    }
-  };
-
-  // 1-Tap Add Bundle of Items
-  const handleAddBundle = async (bundle: QuickBundle) => {
-    if (!id) return;
-    try {
-      for (const bItem of bundle.items) {
-        await packingRepository.addTripItem({
-          tripId: id,
-          itemId: null,
-          customName: bItem.name,
-          category: bundle.category,
-          plannedDestinationId: destinations[0]?.id ?? null,
-          state: 'planned',
-          priority: bItem.priority,
-          quantity: 1,
-          notes: null,
-        });
-      }
-      loadTripData();
-      Alert.alert(
-        language === 'en' ? 'Success' : 'Sukses',
-        format(t.trip.alertBundleAdded, { title: bundle.title, count: bundle.items.length })
-      );
-    } catch {
-      Alert.alert(language === 'en' ? 'Error' : 'Gagal', t.inventory.alertBundleError);
     }
   };
 
@@ -393,7 +365,6 @@ export default function TripDetailScreen() {
     return true;
   });
 
-  const quickBundles = getQuickPackBundles(language);
   const quickDestSuggestions = language === 'en'
     ? [
         { name: 'Hotel / Resort', act: 'Check-in & relax' },
@@ -717,32 +688,6 @@ export default function TripDetailScreen() {
                 </Typography>
               </Pressable>
             </View>
-
-            {/* ONE-TAP QUICK STARTER PACKAGES */}
-            {packSubTab === 'starter' && (
-              <View style={styles.quickBundlesSection}>
-                <Typography variant="label" color={colors.brand.navy} style={styles.bundleSectionTitle}>
-                  {t.trip.quickBundlesTitle}
-                </Typography>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.bundlesRow}>
-                  {quickBundles.map((bundle) => (
-                    <Pressable
-                      key={bundle.title}
-                      style={styles.bundleCard}
-                      onPress={() => handleAddBundle(bundle)}
-                    >
-                      <Ionicons name={bundle.icon as any} size={18} color={colors.brand.coral} />
-                      <Typography variant="caption" color={colors.brand.navy} style={styles.bundleCardTitle}>
-                        + {bundle.title}
-                      </Typography>
-                      <Typography variant="caption" color={colors.text.muted} style={styles.bundleCountText}>
-                        ({bundle.items.length} {language === 'en' ? (bundle.items.length === 1 ? 'item' : 'items') : 'item'})
-                      </Typography>
-                    </Pressable>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
 
             {/* Filter Chips */}
             <View style={styles.filterChipsRow}>
@@ -1863,38 +1808,6 @@ const styles = StyleSheet.create({
   },
   blockerItem: {
     marginTop: 2,
-  },
-  quickBundlesSection: {
-    marginBottom: spacing[4],
-  },
-  bundleSectionTitle: {
-    fontWeight: '700',
-    marginBottom: spacing[2],
-  },
-  bundlesRow: {
-    gap: spacing[2],
-  },
-  bundleCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface.card,
-    paddingHorizontal: spacing[3],
-    paddingVertical: spacing[2],
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border.default,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  bundleCardTitle: {
-    marginLeft: 6,
-    fontWeight: '700',
-  },
-  bundleCountText: {
-    marginLeft: 4,
   },
   filterChipsRow: {
     flexDirection: 'row',

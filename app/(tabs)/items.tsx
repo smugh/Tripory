@@ -6,7 +6,6 @@ import { spacing, radius, useThemeColors } from '@/core/theme';
 import { Typography, Card, Badge, Button, Input, EmptyState, ScreenContainer } from '@/components/ui';
 import { itemRepository } from '@/db/repositories/item.repository';
 import { ItemRecord } from '@/db/schema/items';
-import { getQuickPackBundles, QuickBundle } from '@/core/constants';
 import { useCategoryStore } from '@/stores/category-store';
 import { useI18n } from '@/core/i18n';
 import { useUIStore } from '@/stores/ui-store';
@@ -17,15 +16,17 @@ export default function ItemsScreen() {
   const { t, format, language } = useI18n();
 
   const categories = useCategoryStore((s) => s.categories);
-  const quickBundles = getQuickPackBundles(language);
 
   const [itemsList, setItemsList] = useState<ItemRecord[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newItemName, setNewItemName] = useState('');
-  const [newItemCategory, setNewItemCategory] = useState<string>(categories[0] || 'Clothing');
-  const [newItemImageUri, setNewItemImageUri] = useState<string | null>(null);
-  const [newItemNotes, setNewItemNotes] = useState('');
+  const [editingItem, setEditingItem] = useState<ItemRecord | null>(null);
+
+  // Form states for Add / Edit
+  const [itemName, setItemName] = useState('');
+  const [itemCategory, setItemCategory] = useState<string>(categories[0] || 'Clothing');
+  const [itemImageUri, setItemImageUri] = useState<string | null>(null);
+  const [itemNotes, setItemNotes] = useState('');
 
   const loadItems = useCallback(async () => {
     try {
@@ -42,10 +43,28 @@ export default function ItemsScreen() {
 
   // Keep category in sync if categories list changes
   useEffect(() => {
-    if (categories.length > 0 && !categories.includes(newItemCategory)) {
-      setNewItemCategory(categories[0]);
+    if (categories.length > 0 && !categories.includes(itemCategory)) {
+      setItemCategory(categories[0]);
     }
-  }, [categories, newItemCategory]);
+  }, [categories, itemCategory]);
+
+  const handleOpenAddModal = () => {
+    setEditingItem(null);
+    setItemName('');
+    setItemCategory(categories[0] || 'Clothing');
+    setItemImageUri(null);
+    setItemNotes('');
+    setIsModalOpen(true);
+  };
+
+  const handleOpenEditModal = (item: ItemRecord) => {
+    setEditingItem(item);
+    setItemName(item.name);
+    setItemCategory(item.category);
+    setItemImageUri(item.imageUri || null);
+    setItemNotes(item.notes || '');
+    setIsModalOpen(true);
+  };
 
   const handlePickCamera = async () => {
     try {
@@ -63,7 +82,7 @@ export default function ItemsScreen() {
         quality: 0.8,
       });
       if (!res.canceled && res.assets && res.assets[0]?.uri) {
-        setNewItemImageUri(res.assets[0].uri);
+        setItemImageUri(res.assets[0].uri);
       }
     } catch {
       Alert.alert(language === 'en' ? 'Error' : 'Gagal', 'Failed to open camera.');
@@ -87,7 +106,7 @@ export default function ItemsScreen() {
         quality: 0.8,
       });
       if (!res.canceled && res.assets && res.assets[0]?.uri) {
-        setNewItemImageUri(res.assets[0].uri);
+        setItemImageUri(res.assets[0].uri);
       }
     } catch {
       Alert.alert(language === 'en' ? 'Error' : 'Gagal', 'Failed to open gallery.');
@@ -116,54 +135,66 @@ export default function ItemsScreen() {
   };
 
   const handleSaveItem = async () => {
-    if (!newItemName.trim()) {
+    if (!itemName.trim()) {
       Alert.alert(language === 'en' ? 'Required' : 'Perhatian', t.inventory.alertNameRequired);
       return;
     }
 
     try {
-      await itemRepository.create({
-        name: newItemName.trim(),
-        category: newItemCategory,
-        quantity: 1, // Standard quantity removed from form, defaults to 1
-        notes: newItemNotes.trim() || null,
-        imageUri: newItemImageUri || null,
-      });
+      if (editingItem) {
+        // Update existing item (Update / U of CRUD)
+        await itemRepository.update(editingItem.id, {
+          name: itemName.trim(),
+          category: itemCategory,
+          notes: itemNotes.trim() || null,
+          imageUri: itemImageUri || null,
+        });
+      } else {
+        // Create new item (Create / C of CRUD)
+        await itemRepository.create({
+          name: itemName.trim(),
+          category: itemCategory,
+          quantity: 1,
+          notes: itemNotes.trim() || null,
+          imageUri: itemImageUri || null,
+        });
+      }
 
-      setNewItemName('');
-      setNewItemNotes('');
-      setNewItemImageUri(null);
       setIsModalOpen(false);
+      setEditingItem(null);
       loadItems();
     } catch {
       Alert.alert(language === 'en' ? 'Error' : 'Gagal', t.inventory.alertSaveError);
     }
   };
 
-  const handleAddQuickBundle = async (bundle: QuickBundle) => {
-    try {
-      for (const item of bundle.items) {
-        let cat = 'Others';
-        if (bundle.category === 'Pakaian' || bundle.category === 'Clothing') cat = 'Clothing';
-        else if (bundle.category === 'Elektronik' || bundle.category === 'Electronics') cat = 'Electronics';
-        else if (bundle.category === 'Kesehatan' || bundle.category === 'Medicine') cat = 'Medicine';
-        else if (bundle.category === 'Paling Populer' || bundle.category === 'Documents') cat = 'Documents';
-
-        await itemRepository.create({
-          name: item.name,
-          category: cat,
-          quantity: 1,
-          notes: language === 'en' ? 'Quick Bundle' : 'Paket Kilat',
-        });
-      }
-      loadItems();
-      Alert.alert(
-        language === 'en' ? 'Success' : 'Sukses',
-        format(t.inventory.alertBundleAdded, { title: bundle.title, count: bundle.items.length })
-      );
-    } catch {
-      Alert.alert(language === 'en' ? 'Error' : 'Gagal', t.inventory.alertBundleError);
-    }
+  const handleConfirmDelete = (item: ItemRecord) => {
+    Alert.alert(
+      t.inventory.deleteModalTitle,
+      format(t.inventory.deleteModalMessage, { name: item.name }),
+      [
+        {
+          text: t.inventory.cancelBtn,
+          style: 'cancel',
+        },
+        {
+          text: t.inventory.deleteBtn,
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await itemRepository.delete(item.id);
+              if (isModalOpen && editingItem?.id === item.id) {
+                setIsModalOpen(false);
+                setEditingItem(null);
+              }
+              loadItems();
+            } catch {
+              Alert.alert(language === 'en' ? 'Error' : 'Gagal', t.inventory.deleteError);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const filteredItems = itemsList.filter((item) => {
@@ -206,39 +237,8 @@ export default function ItemsScreen() {
           label={t.inventory.addItemBtn}
           size="sm"
           variant="accent"
-          onPress={() => {
-            setNewItemCategory(categories[0] || 'Clothing');
-            setNewItemImageUri(null);
-            setIsModalOpen(true);
-          }}
+          onPress={handleOpenAddModal}
         />
-      </View>
-
-      {/* QUICK BUNDLE ROW */}
-      <View style={styles.bundleSection}>
-        <Typography variant="caption" color={themeColors.text.primary} style={styles.bundleLabel}>
-          {t.inventory.quickBundlesLabel}
-        </Typography>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.bundleScroll}>
-          {quickBundles.map((b) => (
-            <Pressable
-              key={b.title}
-              style={[
-                styles.bundlePill,
-                {
-                  backgroundColor: isDarkMode ? 'rgba(245, 107, 95, 0.12)' : '#FFF5F4',
-                  borderColor: isDarkMode ? '#451A18' : '#FED7D4',
-                },
-              ]}
-              onPress={() => handleAddQuickBundle(b)}
-            >
-              <Ionicons name={b.icon as any} size={14} color={themeColors.brand.coral} />
-              <Typography variant="caption" color={themeColors.brand.coral} style={styles.bundlePillText}>
-                + {b.title} ({b.items.length})
-              </Typography>
-            </Pressable>
-          ))}
-        </ScrollView>
       </View>
 
       {/* Category Filter Pills */}
@@ -281,48 +281,84 @@ export default function ItemsScreen() {
         />
       </View>
 
-      {/* Items List */}
+      {/* Items List (Read / R of CRUD) */}
       <FlatList
         data={filteredItems}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <Card
-            elevated
-            style={[
-              styles.itemCard,
-              { backgroundColor: themeColors.surface.card, borderColor: themeColors.border.default },
-            ]}
+          <Pressable
+            onPress={() => handleOpenEditModal(item)}
+            style={({ pressed }) => [{ opacity: pressed ? 0.92 : 1 }]}
           >
-            <View style={styles.itemRow}>
-              {item.imageUri ? (
-                <Image source={{ uri: item.imageUri }} style={styles.itemThumbImage} resizeMode="cover" />
-              ) : (
-                <View
-                  style={[
-                    styles.categoryIconCircle,
-                    { backgroundColor: isDarkMode ? themeColors.surface.muted : '#F0F4F8' },
-                  ]}
-                >
-                  <Ionicons
-                    name={getCategoryIcon(item.category)}
-                    size={17}
-                    color={isDarkMode ? '#93C5FD' : themeColors.brand.navy}
-                  />
+            <Card
+              elevated
+              style={[
+                styles.itemCard,
+                { backgroundColor: themeColors.surface.card, borderColor: themeColors.border.default },
+              ]}
+            >
+              <View style={styles.itemRow}>
+                {item.imageUri ? (
+                  <Image source={{ uri: item.imageUri }} style={styles.itemThumbImage} resizeMode="cover" />
+                ) : (
+                  <View
+                    style={[
+                      styles.categoryIconCircle,
+                      { backgroundColor: isDarkMode ? themeColors.surface.muted : '#F0F4F8' },
+                    ]}
+                  >
+                    <Ionicons
+                      name={getCategoryIcon(item.category)}
+                      size={18}
+                      color={isDarkMode ? '#93C5FD' : themeColors.brand.navy}
+                    />
+                  </View>
+                )}
+
+                <View style={styles.itemInfo}>
+                  <Typography variant="body" color={themeColors.text.primary} style={styles.itemName}>
+                    {item.name}
+                  </Typography>
+                  <Typography variant="caption" color={themeColors.text.secondary} numberOfLines={1}>
+                    {item.notes ? item.notes : item.category}
+                  </Typography>
                 </View>
-              )}
 
-              <View style={styles.itemInfo}>
-                <Typography variant="body" color={themeColors.text.primary} style={styles.itemName}>
-                  {item.name}
-                </Typography>
-                <Typography variant="caption" color={themeColors.text.secondary}>
-                  {item.notes ? item.notes : item.category}
-                </Typography>
+                {/* Right Actions: Category Badge & Direct Action Buttons */}
+                <View style={styles.itemActionsRight}>
+                  <Badge label={item.category} variant="neutral" size="sm" />
+                  <View style={styles.iconButtonsRow}>
+                    <Pressable
+                      style={[
+                        styles.iconBtn,
+                        { backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15)' : '#EFF6FF' },
+                      ]}
+                      hitSlop={8}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handleOpenEditModal(item);
+                      }}
+                    >
+                      <Ionicons name="pencil" size={14} color={themeColors.brand.blue} />
+                    </Pressable>
+                    <Pressable
+                      style={[
+                        styles.iconBtn,
+                        { backgroundColor: isDarkMode ? 'rgba(239, 68, 68, 0.15)' : '#FEF2F2' },
+                      ]}
+                      hitSlop={8}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handleConfirmDelete(item);
+                      }}
+                    >
+                      <Ionicons name="trash-outline" size={15} color={themeColors.status.error} />
+                    </Pressable>
+                  </View>
+                </View>
               </View>
-
-              <Badge label={item.category} variant="neutral" size="sm" />
-            </View>
-          </Card>
+            </Card>
+          </Pressable>
         )}
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
@@ -331,16 +367,12 @@ export default function ItemsScreen() {
             title={t.inventory.emptyTitle}
             description={t.inventory.emptyDesc}
             actionLabel={t.inventory.emptyAction}
-            onAction={() => {
-              setNewItemCategory(categories[0] || 'Clothing');
-              setNewItemImageUri(null);
-              setIsModalOpen(true);
-            }}
+            onAction={handleOpenAddModal}
           />
         }
       />
 
-      {/* Modal Tambah Barang */}
+      {/* Modal Tambah / Edit Barang (Create & Update / C & U of CRUD) */}
       <Modal
         visible={isModalOpen}
         animationType="slide"
@@ -354,130 +386,142 @@ export default function ItemsScreen() {
               { backgroundColor: themeColors.surface.card, borderColor: themeColors.border.default },
             ]}
           >
-            <View style={styles.modalHeader}>
-              <Typography variant="h2" color={themeColors.brand.navy}>
-                {t.inventory.modalTitle}
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <View style={styles.modalHeader}>
+                <Typography variant="h2" color={themeColors.brand.navy}>
+                  {editingItem ? t.inventory.editModalTitle : t.inventory.modalTitle}
+                </Typography>
+                <Pressable onPress={() => setIsModalOpen(false)}>
+                  <Ionicons name="close-circle-outline" size={24} color={themeColors.text.muted} />
+                </Pressable>
+              </View>
+
+              {/* 1. Item Photo Picker (Camera or Local Gallery) */}
+              <Typography variant="label" color={themeColors.text.primary} style={styles.inputLabel}>
+                {t.inventory.photoLabel}
               </Typography>
-              <Pressable onPress={() => setIsModalOpen(false)}>
-                <Ionicons name="close-circle-outline" size={24} color={themeColors.text.muted} />
-              </Pressable>
-            </View>
 
-            {/* 1. Item Photo Picker (Camera or Local Gallery) */}
-            <Typography variant="label" color={themeColors.text.primary} style={styles.inputLabel}>
-              {t.inventory.photoLabel}
-            </Typography>
-
-            {newItemImageUri ? (
-              <View style={styles.photoPreviewRow}>
-                <Image source={{ uri: newItemImageUri }} style={styles.photoPreviewImage} />
-                <View style={styles.photoActionButtons}>
-                  <Button
-                    label={t.inventory.photoChangeBtn}
-                    size="sm"
-                    variant="secondary"
-                    onPress={handleShowPhotoOptions}
-                  />
-                  <Button
-                    label={t.inventory.photoRemoveBtn}
-                    size="sm"
-                    variant="ghost"
-                    onPress={() => setNewItemImageUri(null)}
-                    style={{ marginTop: 6 }}
-                  />
+              {itemImageUri ? (
+                <View style={styles.photoPreviewRow}>
+                  <Image source={{ uri: itemImageUri }} style={styles.photoPreviewImage} />
+                  <View style={styles.photoActionButtons}>
+                    <Button
+                      label={t.inventory.photoChangeBtn}
+                      size="sm"
+                      variant="secondary"
+                      onPress={handleShowPhotoOptions}
+                    />
+                    <Button
+                      label={t.inventory.photoRemoveBtn}
+                      size="sm"
+                      variant="ghost"
+                      onPress={() => setItemImageUri(null)}
+                      style={{ marginTop: 6 }}
+                    />
+                  </View>
                 </View>
-              </View>
-            ) : (
-              <View style={styles.photoPickerBtnsRow}>
-                <Pressable
-                  style={[
-                    styles.photoChoiceBtn,
-                    { backgroundColor: isDarkMode ? themeColors.surface.muted : '#F1F5F9', borderColor: themeColors.border.default },
-                  ]}
-                  onPress={handlePickCamera}
-                >
-                  <Ionicons name="camera" size={20} color={themeColors.brand.coral} />
-                  <Typography variant="caption" color={themeColors.text.primary} style={styles.photoChoiceText}>
-                    {t.inventory.photoTakeCamera}
-                  </Typography>
-                </Pressable>
-
-                <Pressable
-                  style={[
-                    styles.photoChoiceBtn,
-                    { backgroundColor: isDarkMode ? themeColors.surface.muted : '#F1F5F9', borderColor: themeColors.border.default },
-                  ]}
-                  onPress={handlePickGallery}
-                >
-                  <Ionicons name="image" size={20} color={themeColors.brand.blue} />
-                  <Typography variant="caption" color={themeColors.text.primary} style={styles.photoChoiceText}>
-                    {t.inventory.photoChooseGallery}
-                  </Typography>
-                </Pressable>
-              </View>
-            )}
-
-            {/* 2. Item Name */}
-            <Input
-              label={t.inventory.nameLabel}
-              placeholder={t.inventory.namePlaceholder}
-              value={newItemName}
-              onChangeText={setNewItemName}
-            />
-
-            {/* 3. Category Select */}
-            <Typography variant="label" color={themeColors.text.primary} style={styles.inputLabel}>
-              {t.inventory.categoryLabel}
-            </Typography>
-            <View style={styles.categorySelectGrid}>
-              {categories.map((cat) => (
-                <Pressable
-                  key={cat}
-                  onPress={() => setNewItemCategory(cat)}
-                  style={[
-                    styles.catSelectPill,
-                    {
-                      backgroundColor: newItemCategory === cat
-                        ? themeColors.brand.blue
-                        : isDarkMode
-                        ? themeColors.surface.card
-                        : '#F1F5F9',
-                    },
-                  ]}
-                >
-                  <Typography
-                    variant="caption"
-                    color={newItemCategory === cat ? '#FFFFFF' : themeColors.text.secondary}
-                    style={styles.catSelectText}
+              ) : (
+                <View style={styles.photoPickerBtnsRow}>
+                  <Pressable
+                    style={[
+                      styles.photoChoiceBtn,
+                      { backgroundColor: isDarkMode ? themeColors.surface.muted : '#F1F5F9', borderColor: themeColors.border.default },
+                    ]}
+                    onPress={handlePickCamera}
                   >
-                    {cat}
-                  </Typography>
-                </Pressable>
-              ))}
-            </View>
+                    <Ionicons name="camera" size={20} color={themeColors.brand.coral} />
+                    <Typography variant="caption" color={themeColors.text.primary} style={styles.photoChoiceText}>
+                      {t.inventory.photoTakeCamera}
+                    </Typography>
+                  </Pressable>
 
-            {/* 4. Notes (Optional) */}
-            <Input
-              label={t.inventory.notesLabel}
-              placeholder={t.inventory.notesPlaceholder}
-              value={newItemNotes}
-              onChangeText={setNewItemNotes}
-            />
+                  <Pressable
+                    style={[
+                      styles.photoChoiceBtn,
+                      { backgroundColor: isDarkMode ? themeColors.surface.muted : '#F1F5F9', borderColor: themeColors.border.default },
+                    ]}
+                    onPress={handlePickGallery}
+                  >
+                    <Ionicons name="image" size={20} color={themeColors.brand.blue} />
+                    <Typography variant="caption" color={themeColors.text.primary} style={styles.photoChoiceText}>
+                      {t.inventory.photoChooseGallery}
+                    </Typography>
+                  </Pressable>
+                </View>
+              )}
 
-            <View style={styles.modalButtons}>
-              <Button
-                label={t.inventory.cancelBtn}
-                variant="ghost"
-                size="md"
-                onPress={() => setIsModalOpen(false)}
+              {/* 2. Item Name */}
+              <Input
+                label={t.inventory.nameLabel}
+                placeholder={t.inventory.namePlaceholder}
+                value={itemName}
+                onChangeText={setItemName}
               />
-              <Button
-                label={t.inventory.saveBtn}
-                variant="accent"
-                size="md"
-                onPress={handleSaveItem}
+
+              {/* 3. Category Select */}
+              <Typography variant="label" color={themeColors.text.primary} style={styles.inputLabel}>
+                {t.inventory.categoryLabel}
+              </Typography>
+              <View style={styles.categorySelectGrid}>
+                {categories.map((cat) => (
+                  <Pressable
+                    key={cat}
+                    onPress={() => setItemCategory(cat)}
+                    style={[
+                      styles.catSelectPill,
+                      {
+                        backgroundColor: itemCategory === cat
+                          ? themeColors.brand.blue
+                          : isDarkMode
+                          ? themeColors.surface.card
+                          : '#F1F5F9',
+                      },
+                    ]}
+                  >
+                    <Typography
+                      variant="caption"
+                      color={itemCategory === cat ? '#FFFFFF' : themeColors.text.secondary}
+                      style={styles.catSelectText}
+                    >
+                      {cat}
+                    </Typography>
+                  </Pressable>
+                ))}
+              </View>
+
+              {/* 4. Notes (Optional) */}
+              <Input
+                label={t.inventory.notesLabel}
+                placeholder={t.inventory.notesPlaceholder}
+                value={itemNotes}
+                onChangeText={setItemNotes}
               />
-            </View>
+
+              {/* Modal Buttons */}
+              <View style={styles.modalButtons}>
+                {editingItem && (
+                  <Button
+                    label={t.inventory.deleteBtn}
+                    variant="destructive"
+                    size="md"
+                    onPress={() => handleConfirmDelete(editingItem)}
+                    style={{ marginRight: 'auto' }}
+                  />
+                )}
+                <Button
+                  label={t.inventory.cancelBtn}
+                  variant="ghost"
+                  size="md"
+                  onPress={() => setIsModalOpen(false)}
+                />
+                <Button
+                  label={editingItem ? t.inventory.saveChangesBtn : t.inventory.saveBtn}
+                  variant="accent"
+                  size="md"
+                  onPress={handleSaveItem}
+                />
+              </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -495,30 +539,6 @@ const styles = StyleSheet.create({
   },
   topBarLeft: {
     flex: 1,
-  },
-  bundleSection: {
-    marginBottom: spacing[3],
-  },
-  bundleLabel: {
-    fontWeight: '700',
-    fontSize: 12,
-    marginBottom: 6,
-  },
-  bundleScroll: {
-    gap: spacing[2],
-  },
-  bundlePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    paddingHorizontal: spacing[3],
-    paddingVertical: 5,
-    borderRadius: radius.full,
-  },
-  bundlePillText: {
-    marginLeft: 5,
-    fontWeight: '700',
-    fontSize: 11,
   },
   categoryWrap: {
     marginBottom: spacing[3],
@@ -549,16 +569,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   itemThumbImage: {
-    width: 38,
-    height: 38,
+    width: 42,
+    height: 42,
     borderRadius: 8,
     marginRight: spacing[3],
     backgroundColor: '#E2E8F0',
   },
   categoryIconCircle: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: spacing[3],
@@ -570,7 +590,24 @@ const styles = StyleSheet.create({
   itemName: {
     fontWeight: '700',
     fontSize: 14,
-    marginBottom: 1,
+    marginBottom: 2,
+  },
+  itemActionsRight: {
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  iconButtonsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  iconBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   modalOverlay: {
     flex: 1,
@@ -578,6 +615,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
+    maxHeight: '85%',
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
     padding: spacing[5],
@@ -646,6 +684,7 @@ const styles = StyleSheet.create({
   modalButtons: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
+    alignItems: 'center',
     gap: spacing[2],
     marginTop: spacing[4],
   },

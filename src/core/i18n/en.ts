@@ -52,11 +52,19 @@ export const en = {
     daysSuffix: 'Days',
     oneDaySuffix: 'Day',
     
-    // Album Controls
+    // Album Controls & Past Journeys
     albumSortNewest: 'Newest First',
     albumSortOldest: 'Oldest First',
     albumViewGrid: 'Grid',
     albumViewList: 'List',
+    albumPastTripsTitle: 'Completed Past Journeys',
+    albumPastTripsDesc: 'Cherished adventures you have completed & archived.',
+    albumPhotosTitle: 'Photos & Documentation',
+    albumNoMomentsYet: 'No manual photos or moments added yet. You can add them anytime.',
+    openTripMemoryBtn: '✨ Open Trip Memories →',
+    completedBadge: 'Saved in Album',
+    stopsCountLabel: '{count} Stops Visited',
+    itemsReturnedLabel: 'Gear Returned Safely',
   },
 
   // Settings Screen
@@ -318,10 +326,13 @@ export const en = {
     visitedDialogNoChange: 'Skip / No Changes',
     visitedDialogItemUsedLabel: 'Used',
 
-    // Trip Closure
-    closeSectionTitle: 'Finish & Close Trip',
-    closeSectionDesc: 'Perform return check and archive this journey. If any items remain unverified, the system will keep them as unreturned records without blocking closure.',
-    closeSectionBtn: 'Close & Archive This Trip',
+    // Trip Closure & Album Archive
+    closeSectionTitle: 'End Trip & Save to Album',
+    closeSectionDesc: 'Finalize all planning stages, review returned items, and preserve the complete journey & documentation into your Home Travel Album.',
+    closeSectionBtn: '🎉 End Trip & Save to Album',
+    tripAlreadyCompletedTitle: 'This Trip is Completed & Archived',
+    tripAlreadyCompletedDesc: 'This trip was successfully completed! All documentation and memories are preserved in your Home Travel Album.',
+    viewInAlbumBtn: '✨ View in Home Travel Album →',
     closeModalTitle: 'Close & Complete Journey?',
     closeModalDesc: 'Closing the trip will move it to memories archive. If any items are not verified back, they will be saved safely without blocking closure.',
     closeModalAction: 'Close & Save Memories',

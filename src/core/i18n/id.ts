@@ -54,11 +54,19 @@ export const id: TranslationDictionary = {
     daysSuffix: 'Hari',
     oneDaySuffix: 'Hari',
 
-    // Album Controls
+    // Album Controls & Past Journeys
     albumSortNewest: 'Paling Baru',
     albumSortOldest: 'Paling Lama',
     albumViewGrid: 'Grid',
     albumViewList: 'List',
+    albumPastTripsTitle: 'Perjalanan yang Telah Selesai',
+    albumPastTripsDesc: 'Koleksi petualangan manis yang telah selesai & diabadikan.',
+    albumPhotosTitle: 'Galeri Momen & Dokumentasi',
+    albumNoMomentsYet: 'Belum ada foto atau momen yang diabadikan secara manual. Anda dapat menambahkannya kapan saja.',
+    openTripMemoryBtn: '✨ Buka Kenangan Perjalanan →',
+    completedBadge: 'Tersimpan di Album',
+    stopsCountLabel: '{count} Titik Singgah',
+    itemsReturnedLabel: 'Peralatan Kembali Aman',
   },
 
   // Pengaturan
@@ -320,10 +328,13 @@ export const id: TranslationDictionary = {
     visitedDialogNoChange: 'Lewati / Tanpa Perubahan',
     visitedDialogItemUsedLabel: 'Terpakai',
 
-    // Penutupan Perjalanan (Trip Closure)
-    closeSectionTitle: 'Selesai & Tutup Perjalanan',
-    closeSectionDesc: 'Lakukan return check dan arsipkan perjalanan ini. Jika ada barang belum diverifikasi, sistem akan menyimpannya sebagai catatan barang hilang tanpa mengunci penutupan trip.',
-    closeSectionBtn: 'Tutup & Arsipkan Perjalanan Ini',
+    // Penutupan Perjalanan (Trip Closure & Album Archive)
+    closeSectionTitle: 'Selesaikan Perjalanan & Simpan ke Album',
+    closeSectionDesc: 'Tutup seluruh tahapan perencanaan, periksa checklist barang kembali, dan abadikan seluruh rute & dokumentasi trip ke Album Kenangan Liburan di Beranda.',
+    closeSectionBtn: '🎉 Selesai & Simpan ke Album',
+    tripAlreadyCompletedTitle: 'Perjalanan Ini Telah Selesai & Diarsipkan',
+    tripAlreadyCompletedDesc: 'Trip ini telah sukses diselesaikan! Seluruh dokumentasi dan kenangan perjalanan tersimpan rapi di Album Kenangan Beranda.',
+    viewInAlbumBtn: '✨ Lihat di Album Kenangan Beranda →',
     closeModalTitle: 'Tutup & Selesaikan Perjalanan?',
     closeModalDesc: 'Menutup trip akan memindahkan perjalanan ini ke arsip kenangan. Jika ada barang belum diverifikasi kembali, sistem tetap menyimpannya dengan aman tanpa mengunci penutupan trip.',
     closeModalAction: 'Tutup & Simpan Kenangan',

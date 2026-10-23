@@ -108,7 +108,7 @@ export default function TripCloseScreen() {
           [
             {
               text: 'OK',
-              onPress: () => router.replace('/(tabs)/trips' as any),
+              onPress: () => router.replace('/(tabs)' as any),
             },
           ]
         );
@@ -119,7 +119,7 @@ export default function TripCloseScreen() {
           [
             {
               text: 'OK',
-              onPress: () => router.replace('/(tabs)/trips' as any),
+              onPress: () => router.replace('/(tabs)' as any),
             },
           ]
         );

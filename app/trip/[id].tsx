@@ -1102,26 +1102,59 @@ export default function TripDetailScreen() {
           </View>
         ) : null}
 
-        {/* Penutupan Perjalanan (Trip Closure) */}
+        {/* Penutupan Perjalanan (End Trip & Save to Album) */}
         {!isCompleted ? (
-          <Card style={styles.closeCard}>
+          <Card style={[styles.closeCard, { borderColor: colors.brand.coral, borderWidth: 1.5 }]}>
             <View style={styles.closeHeader}>
-              <Ionicons name="archive-outline" size={20} color={colors.brand.navy} />
-              <Typography variant="h3" color={colors.brand.navy} style={styles.closeTitle}>
-                {t.trip.closeSectionTitle}
-              </Typography>
+              <View style={[styles.endTripIconCircle, { backgroundColor: '#FFF0EE' }]}>
+                <Ionicons name="trophy" size={22} color={colors.brand.coral} />
+              </View>
+              <View style={{ flex: 1, marginLeft: spacing[3] }}>
+                <Typography variant="h3" color={colors.brand.navy} style={styles.closeTitle}>
+                  {t.trip.closeSectionTitle}
+                </Typography>
+                {trip?.destination ? (
+                  <Typography variant="caption" color={colors.brand.coral} style={{ fontWeight: '600', marginTop: 2 }}>
+                    📍 {trip.destination}
+                  </Typography>
+                ) : null}
+              </View>
             </View>
             <Typography variant="body" color={colors.text.secondary} style={styles.closeDesc}>
               {t.trip.closeSectionDesc}
             </Typography>
             <Button
               label={t.trip.closeSectionBtn}
-              variant="destructive"
+              variant="primary"
+              size="lg"
               isLoading={isClosingTrip}
               onPress={handleCloseTrip}
             />
           </Card>
-        ) : null}
+        ) : (
+          <Card style={[styles.closeCard, { borderColor: colors.status.success, borderWidth: 1.5 }]}>
+            <View style={styles.closeHeader}>
+              <View style={[styles.endTripIconCircle, { backgroundColor: '#E8F5E9' }]}>
+                <Ionicons name="checkmark-done-circle" size={24} color={colors.status.success} />
+              </View>
+              <View style={{ flex: 1, marginLeft: spacing[3] }}>
+                <Typography variant="label" color={colors.brand.navy} style={{ fontWeight: '700' }}>
+                  {t.trip.tripAlreadyCompletedTitle}
+                </Typography>
+                <Typography variant="caption" color={colors.text.secondary} style={{ marginTop: 2 }}>
+                  {t.trip.tripAlreadyCompletedDesc}
+                </Typography>
+              </View>
+            </View>
+            <Button
+              label={t.trip.viewInAlbumBtn}
+              variant="secondary"
+              size="md"
+              onPress={() => router.replace('/(tabs)' as any)}
+              style={{ marginTop: spacing[3] }}
+            />
+          </Card>
+        )}
       </ScrollView>
 
       {/* MODAL: SHIFT ITEM TO ANOTHER DESTINATION */}
@@ -2001,12 +2034,24 @@ const styles = StyleSheet.create({
   closeCard: {
     padding: spacing[5],
     marginBottom: spacing[6],
-    borderColor: colors.status.warning,
+    borderRadius: radius.xl,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  endTripIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   closeHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing[2],
+    marginBottom: spacing[3],
   },
   closeTitle: {
     marginLeft: 6,

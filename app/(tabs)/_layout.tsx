@@ -98,7 +98,7 @@ export default function TabLayout() {
                   },
                   pressed && styles.centerButtonPressed,
                 ]}
-                accessibilityLabel="Buat Trip Baru"
+                accessibilityLabel={t.tabs.create}
                 accessibilityRole="button"
               >
                 <Image

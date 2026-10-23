@@ -4,6 +4,14 @@ import { destinations, DestinationRecord, NewDestinationRecord } from '../schema
 import { generateId } from '@/core/utils/id';
 
 export const destinationRepository = {
+  async getAll(): Promise<DestinationRecord[]> {
+    return db
+      .select()
+      .from(destinations)
+      .orderBy(asc(destinations.dayNumber), asc(destinations.orderIndex))
+      .all();
+  },
+
   async getByTripId(tripId: string): Promise<DestinationRecord[]> {
     return db
       .select()

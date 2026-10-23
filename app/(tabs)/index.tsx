@@ -10,6 +10,7 @@ import { destinationRepository } from '@/db/repositories/destination.repository'
 import { packingRepository } from '@/db/repositories/packing.repository';
 import { momentRepository } from '@/db/repositories/moment.repository';
 import { MomentRecord } from '@/db/schema/moments';
+import { DestinationRecord } from '@/db/schema/destinations';
 import { formatDateRange, formatTripDurationLabel } from '@/core/utils';
 import { getTripPresets, TripPreset } from '@/core/constants';
 import { useUIStore } from '@/stores/ui-store';
@@ -23,8 +24,10 @@ export default function HomeScreen() {
 
   const { trips, isLoading, refreshTrips } = useTrips(true);
   const [moments, setMoments] = useState<MomentRecord[]>([]);
+  const [destinations, setDestinations] = useState<DestinationRecord[]>([]);
   const [albumSortOrder, setAlbumSortOrder] = useState<'newest' | 'oldest'>('newest');
   const [albumViewMode, setAlbumViewMode] = useState<'grid' | 'list'>('grid');
+  const [albumCategoryFilter, setAlbumCategoryFilter] = useState<'all' | 'past' | 'ongoing' | 'upcoming'>('all');
 
   const sortedMoments = useMemo(() => {
     return [...moments].sort((a, b) => {
@@ -33,6 +36,44 @@ export default function HomeScreen() {
       return albumSortOrder === 'newest' ? timeB - timeA : timeA - timeB;
     });
   }, [moments, albumSortOrder]);
+
+  // Helper to get cover photo for trip
+  const getTripCoverPhoto = (tripId: string): string | null => {
+    const tripMoment = moments.find(
+      (m) => m.tripId === tripId && m.photoPath && !m.photoPath.startsWith('local://placeholder')
+    );
+    if (tripMoment?.photoPath) return tripMoment.photoPath;
+
+    const tripDest = destinations.find((d) => d.tripId === tripId && d.imageUri);
+    if (tripDest?.imageUri) return tripDest.imageUri;
+
+    return null;
+  };
+
+  // Filtered trips for Album
+  const pastTripsList = useMemo(() => trips.filter((t) => t.status === 'completed'), [trips]);
+  const ongoingTripsList = useMemo(() => trips.filter((t) => t.status === 'ongoing'), [trips]);
+  const upcomingTripsList = useMemo(
+    () => trips.filter((t) => t.status === 'preparing' || t.status === 'ready' || t.status === 'draft'),
+    [trips]
+  );
+
+  const filteredAlbumTrips = useMemo(() => {
+    return trips
+      .filter((trip) => {
+        if (albumCategoryFilter === 'past') return trip.status === 'completed';
+        if (albumCategoryFilter === 'ongoing') return trip.status === 'ongoing';
+        if (albumCategoryFilter === 'upcoming') {
+          return trip.status === 'preparing' || trip.status === 'ready' || trip.status === 'draft';
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        const timeA = new Date(a.startDate).getTime();
+        const timeB = new Date(b.startDate).getTime();
+        return albumSortOrder === 'newest' ? timeB - timeA : timeA - timeB;
+      });
+  }, [trips, albumCategoryFilter, albumSortOrder]);
 
   // Ambil semua rencana perjalanan yang sedang aktif / dalam proses (bukan arsip selesai)
   const planningTrips = trips.filter((t) => t.status !== 'completed');
@@ -93,15 +134,19 @@ export default function HomeScreen() {
   };
 
   useEffect(() => {
-    async function loadMoments() {
+    async function loadData() {
       try {
-        const data = await momentRepository.getAll();
-        setMoments(data);
+        const [m, d] = await Promise.all([
+          momentRepository.getAll(),
+          destinationRepository.getAll(),
+        ]);
+        setMoments(m);
+        setDestinations(d);
       } catch {
         // Abaikan
       }
     }
-    loadMoments();
+    loadData();
   }, [trips]);
 
   // 1-Tap Instant Trip Creator from Home Screen
@@ -193,7 +238,7 @@ export default function HomeScreen() {
                 borderColor: isDarkMode ? colors.border.strong : '#E2E8F0',
               },
             ]}
-            accessibilityLabel="Ganti Mode Gelap / Terang"
+            accessibilityLabel={language === 'en' ? 'Toggle Dark / Light Mode' : 'Ganti Mode Gelap / Terang'}
             accessibilityRole="button"
           >
             <Ionicons
@@ -397,7 +442,7 @@ export default function HomeScreen() {
           </Card>
         )}
 
-        {/* Album Kenangan Perjalanan (List / Grid dengan Filter Terbaru - Lama) */}
+        {/* Album Kenangan Perjalanan (List / Grid dengan Filter Kategori & Terbaru - Lama) */}
         <View style={styles.section}>
           <View style={styles.albumHeader}>
             <View style={styles.albumHeaderLeft}>
@@ -408,10 +453,10 @@ export default function HomeScreen() {
             </View>
             <Badge
               label={
-                completedTripsList.length > 0 && moments.length > 0
-                  ? `${completedTripsList.length} Trip • ${moments.length} Foto`
-                  : completedTripsList.length > 0
-                  ? (completedTripsList.length === 1 ? '1 Trip Selesai' : `${completedTripsList.length} Trip Selesai`)
+                trips.length > 0 && moments.length > 0
+                  ? format(t.home.albumTripsAndPhotosBadge, { trips: trips.length, photos: moments.length })
+                  : trips.length > 0
+                  ? (trips.length === 1 ? t.home.albumOneTripBadge : format(t.home.albumTripsBadge, { count: trips.length }))
                   : (moments.length === 1 ? t.home.onePhotoBadge : format(t.home.photosBadge, { count: moments.length }))
               }
               variant="primary"
@@ -419,290 +464,350 @@ export default function HomeScreen() {
             />
           </View>
 
-          {/* Sub-section 1: Past Completed Trips Saved in Album */}
-          {completedTripsList.length > 0 && (
-            <View style={styles.completedTripsSection}>
-              <View style={styles.subSectionHeader}>
-                <Ionicons name="sparkles" size={16} color={colors.brand.coral} />
-                <Typography variant="label" color={colors.brand.navy} style={styles.subSectionTitle}>
-                  {t.home.albumPastTripsTitle}
-                </Typography>
-                <Badge
-                  label={`${completedTripsList.length}`}
-                  variant="accent"
-                  size="sm"
-                />
-              </View>
-              <Typography variant="caption" color={colors.text.secondary} style={{ marginBottom: spacing[3] }}>
-                {t.home.albumPastTripsDesc}
-              </Typography>
-
-              {completedTripsList.map((cTrip) => (
+          {/* 1. Category Filter Tabs (All, Past / Sudah Lewat, Ongoing / Sedang Berjalan, Upcoming / Akan Datang) */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.categoryScroll}
+          >
+            {[
+              { key: 'all', label: t.home.albumFilterAll, count: trips.length },
+              { key: 'past', label: t.home.albumFilterPast, count: pastTripsList.length },
+              { key: 'ongoing', label: t.home.albumFilterOngoing, count: ongoingTripsList.length },
+              { key: 'upcoming', label: t.home.albumFilterUpcoming, count: upcomingTripsList.length },
+            ].map((cat) => {
+              const isActive = albumCategoryFilter === cat.key;
+              return (
                 <Pressable
-                  key={cTrip.id}
+                  key={cat.key}
                   style={[
-                    styles.pastTripCard,
-                    { backgroundColor: colors.surface.card, borderColor: colors.border.default },
+                    styles.categoryPill,
+                    {
+                      backgroundColor: isActive
+                        ? colors.brand.coral
+                        : isDarkMode
+                        ? colors.surface.card
+                        : '#F1F5F9',
+                      borderColor: isActive ? colors.brand.coral : colors.border.default,
+                    },
                   ]}
-                  onPress={() => router.push(`/trip/${cTrip.id}`)}
+                  onPress={() => setAlbumCategoryFilter(cat.key as any)}
                 >
-                  {/* Decorative Banner Header */}
-                  <View style={[styles.pastTripBanner, { backgroundColor: isDarkMode ? '#1E293B' : colors.brand.navy }]}>
-                    <View style={styles.pastTripBannerRow}>
-                      <View style={styles.completedBadgePill}>
-                        <Ionicons name="checkmark-done" size={13} color="#FFFFFF" />
-                        <Typography variant="caption" color="#FFFFFF" style={{ fontWeight: '700', marginLeft: 4 }}>
-                          {t.home.completedBadge}
-                        </Typography>
-                      </View>
-                      <View style={styles.durationPill}>
-                        <Typography variant="caption" color="#FFFFFF" style={{ fontWeight: '600' }}>
-                          {formatTripDurationLabel(cTrip.startDate, cTrip.endDate, language)}
-                        </Typography>
-                      </View>
-                    </View>
-                    <Typography variant="h3" color="#FFFFFF" style={styles.pastTripTitle}>
-                      {cTrip.name}
-                    </Typography>
-                  </View>
-
-                  <View style={styles.pastTripBody}>
-                    <View style={styles.pastTripMetaRow}>
-                      <View style={styles.metaItem}>
-                        <Ionicons name="location" size={14} color={colors.brand.coral} />
-                        <Typography variant="caption" color={colors.brand.coral} style={{ fontWeight: '600', marginLeft: 4 }}>
-                          {cTrip.destination}
-                        </Typography>
-                      </View>
-                      <View style={styles.metaItem}>
-                        <Ionicons name="calendar-outline" size={14} color={colors.text.muted} />
-                        <Typography variant="caption" color={colors.text.muted} style={{ marginLeft: 4 }}>
-                          {formatDateRange(cTrip.startDate, cTrip.endDate, language)}
-                        </Typography>
-                      </View>
-                    </View>
-
-                    {/* Stats Highlights */}
-                    <View style={styles.pastTripPillsRow}>
-                      <View style={[styles.highlightPill, { backgroundColor: '#E8F5E9' }]}>
-                        <Ionicons name="checkmark-circle" size={13} color={colors.status.success} />
-                        <Typography variant="caption" color={colors.status.success} style={{ fontWeight: '700', marginLeft: 4 }}>
-                          100% {t.home.statusCompleted}
-                        </Typography>
-                      </View>
-                      <View style={[styles.highlightPill, { backgroundColor: '#EBF3FC' }]}>
-                        <Ionicons name="shield-checkmark" size={13} color={colors.brand.blue} />
-                        <Typography variant="caption" color={colors.brand.blue} style={{ fontWeight: '600', marginLeft: 4 }}>
-                          {t.home.itemsReturnedLabel}
-                        </Typography>
-                      </View>
-                    </View>
-
-                    <View style={styles.openMemoryRow}>
-                      <Typography variant="label" color={colors.brand.coral} style={{ fontWeight: '700' }}>
-                        {t.home.openTripMemoryBtn}
-                      </Typography>
-                    </View>
-                  </View>
-                </Pressable>
-              ))}
-            </View>
-          )}
-
-          {/* Sub-section 2: Captured Photos & Moments */}
-          {moments.length > 0 ? (
-            <View style={{ marginTop: completedTripsList.length > 0 ? spacing[4] : 0 }}>
-              {completedTripsList.length > 0 && (
-                <View style={styles.subSectionHeader}>
-                  <Ionicons name="camera" size={16} color={colors.brand.blue} />
-                  <Typography variant="label" color={colors.brand.navy} style={styles.subSectionTitle}>
-                    {t.home.albumPhotosTitle}
+                  <Typography
+                    variant="caption"
+                    color={isActive ? '#FFFFFF' : colors.text.secondary}
+                    style={{ fontWeight: isActive ? '700' : '600' }}
+                  >
+                    {cat.label} ({cat.count})
                   </Typography>
-                </View>
-              )}
+                </Pressable>
+              );
+            })}
+          </ScrollView>
 
-              {/* Controls: Filter Sort (Paling Baru - Lama) & View Mode (Grid / List) */}
-              <View style={styles.albumControlsRow}>
-                {/* Sort Segment */}
-                <View style={[styles.sortSegmentWrap, { backgroundColor: colors.surface.card, borderColor: colors.border.default }]}>
-                  <Pressable
-                    style={[
-                      styles.sortPill,
-                      albumSortOrder === 'newest' && { backgroundColor: colors.brand.blue },
-                    ]}
-                    onPress={() => setAlbumSortOrder('newest')}
-                  >
-                    <Typography
-                      variant="caption"
-                      color={albumSortOrder === 'newest' ? '#FFFFFF' : colors.text.secondary}
-                      style={styles.controlPillText}
-                    >
-                      {t.home.albumSortNewest}
-                    </Typography>
-                  </Pressable>
+          {/* 2. Controls: Sort (Newest - Oldest) & View Mode (Grid / List) */}
+          <View style={styles.albumControlsRow}>
+            {/* Sort Segment */}
+            <View style={[styles.sortSegmentWrap, { backgroundColor: colors.surface.card, borderColor: colors.border.default }]}>
+              <Pressable
+                style={[
+                  styles.sortPill,
+                  albumSortOrder === 'newest' && { backgroundColor: colors.brand.blue },
+                ]}
+                onPress={() => setAlbumSortOrder('newest')}
+              >
+                <Typography
+                  variant="caption"
+                  color={albumSortOrder === 'newest' ? '#FFFFFF' : colors.text.secondary}
+                  style={styles.controlPillText}
+                >
+                  {t.home.albumSortNewest}
+                </Typography>
+              </Pressable>
 
-                  <Pressable
-                    style={[
-                      styles.sortPill,
-                      albumSortOrder === 'oldest' && { backgroundColor: colors.brand.blue },
-                    ]}
-                    onPress={() => setAlbumSortOrder('oldest')}
-                  >
-                    <Typography
-                      variant="caption"
-                      color={albumSortOrder === 'oldest' ? '#FFFFFF' : colors.text.secondary}
-                      style={styles.controlPillText}
-                    >
-                      {t.home.albumSortOldest}
-                    </Typography>
-                  </Pressable>
-                </View>
-
-                {/* View Mode Toggle */}
-                <View style={[styles.viewModeToggleWrap, { backgroundColor: colors.surface.card, borderColor: colors.border.default }]}>
-                  <Pressable
-                    style={[
-                      styles.viewModeBtn,
-                      albumViewMode === 'grid' && { backgroundColor: colors.surface.muted },
-                    ]}
-                    onPress={() => setAlbumViewMode('grid')}
-                  >
-                    <Ionicons
-                      name="grid"
-                      size={16}
-                      color={albumViewMode === 'grid' ? colors.brand.coral : colors.text.muted}
-                    />
-                  </Pressable>
-
-                  <Pressable
-                    style={[
-                      styles.viewModeBtn,
-                      albumViewMode === 'list' && { backgroundColor: colors.surface.muted },
-                    ]}
-                    onPress={() => setAlbumViewMode('list')}
-                  >
-                    <Ionicons
-                      name="list"
-                      size={18}
-                      color={albumViewMode === 'list' ? colors.brand.coral : colors.text.muted}
-                    />
-                  </Pressable>
-                </View>
-              </View>
-
-              {albumViewMode === 'grid' ? (
-                <View style={styles.gridContainer}>
-                  {sortedMoments.map((m) => (
-                    <Pressable
-                      key={m.id}
-                      style={[
-                        styles.gridCard,
-                        { backgroundColor: colors.surface.card, borderColor: colors.border.default },
-                      ]}
-                      onPress={() => router.push(`/trip/${m.tripId}`)}
-                    >
-                      <View style={styles.gridImageWrap}>
-                        {m.photoPath && !m.photoPath.startsWith('local://placeholder') ? (
-                          <Image source={{ uri: m.photoPath }} style={styles.gridImage} />
-                        ) : (
-                          <View style={[styles.gridPlaceholder, { backgroundColor: colors.surface.muted }]}>
-                            <Ionicons name="image-outline" size={32} color={colors.brand.blue} />
-                          </View>
-                        )}
-
-                        {m.locationName && (
-                          <View style={styles.gridLocationBadge}>
-                            <Ionicons name="location" size={10} color="#FFFFFF" />
-                            <Typography variant="caption" color="#FFFFFF" style={styles.gridLocationText} numberOfLines={1}>
-                              {m.locationName}
-                            </Typography>
-                          </View>
-                        )}
-                      </View>
-
-                      <View style={styles.gridCardBody}>
-                        <Typography variant="label" color={colors.brand.navy} numberOfLines={1} style={styles.gridCaption}>
-                          {m.caption || 'Travel Memory'}
-                        </Typography>
-                        <Typography variant="caption" color={colors.text.muted} style={{ marginTop: 2 }}>
-                          {new Date(m.capturedAt).toLocaleDateString(language === 'en' ? 'en-US' : 'id-ID', {
-                            day: 'numeric',
-                            month: 'short',
-                            year: 'numeric',
-                          })}
-                        </Typography>
-                      </View>
-                    </Pressable>
-                  ))}
-                </View>
-              ) : (
-                <View style={styles.listContainer}>
-                  {sortedMoments.map((m) => (
-                    <Pressable
-                      key={m.id}
-                      style={[
-                        styles.listCard,
-                        { backgroundColor: colors.surface.card, borderColor: colors.border.default },
-                      ]}
-                      onPress={() => router.push(`/trip/${m.tripId}`)}
-                    >
-                      <View style={styles.listImageWrap}>
-                        {m.photoPath && !m.photoPath.startsWith('local://placeholder') ? (
-                          <Image source={{ uri: m.photoPath }} style={styles.listImage} />
-                        ) : (
-                          <View style={[styles.listPlaceholder, { backgroundColor: colors.surface.muted }]}>
-                            <Ionicons name="image-outline" size={40} color={colors.brand.blue} />
-                          </View>
-                        )}
-
-                        {m.locationName && (
-                          <View style={styles.listLocationBadge}>
-                            <Ionicons name="location" size={12} color="#FFFFFF" />
-                            <Typography variant="caption" color="#FFFFFF" style={styles.listLocationText} numberOfLines={1}>
-                              {m.locationName}
-                            </Typography>
-                          </View>
-                        )}
-                      </View>
-
-                      <View style={styles.listCardBody}>
-                        <Typography variant="label" color={colors.brand.navy} style={styles.listCaption} numberOfLines={2}>
-                          {m.caption || 'Travel Memory'}
-                        </Typography>
-                        <Typography variant="caption" color={colors.text.muted} style={{ marginTop: 4 }}>
-                          {new Date(m.capturedAt).toLocaleDateString(language === 'en' ? 'en-US' : 'id-ID', {
-                            day: 'numeric',
-                            month: 'short',
-                            year: 'numeric',
-                          })}
-                        </Typography>
-                      </View>
-                    </Pressable>
-                  ))}
-                </View>
-              )}
+              <Pressable
+                style={[
+                  styles.sortPill,
+                  albumSortOrder === 'oldest' && { backgroundColor: colors.brand.blue },
+                ]}
+                onPress={() => setAlbumSortOrder('oldest')}
+              >
+                <Typography
+                  variant="caption"
+                  color={albumSortOrder === 'oldest' ? '#FFFFFF' : colors.text.secondary}
+                  style={styles.controlPillText}
+                >
+                  {t.home.albumSortOldest}
+                </Typography>
+              </Pressable>
             </View>
-          ) : completedTripsList.length === 0 ? (
+
+            {/* View Mode Toggle */}
+            <View style={[styles.viewModeToggleWrap, { backgroundColor: colors.surface.card, borderColor: colors.border.default }]}>
+              <Pressable
+                style={[
+                  styles.viewModeBtn,
+                  albumViewMode === 'grid' && { backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0' },
+                ]}
+                onPress={() => setAlbumViewMode('grid')}
+              >
+                <Ionicons
+                  name="grid"
+                  size={16}
+                  color={albumViewMode === 'grid' ? colors.brand.coral : colors.text.muted}
+                />
+              </Pressable>
+
+              <Pressable
+                style={[
+                  styles.viewModeBtn,
+                  albumViewMode === 'list' && { backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0' },
+                ]}
+                onPress={() => setAlbumViewMode('list')}
+              >
+                <Ionicons
+                  name="list"
+                  size={18}
+                  color={albumViewMode === 'list' ? colors.brand.coral : colors.text.muted}
+                />
+              </Pressable>
+            </View>
+          </View>
+
+          {/* 3. Render Journeys / Events (Grid or Clean List View) */}
+          {filteredAlbumTrips.length === 0 ? (
             <Card style={styles.emptyAlbumCard}>
               <View style={styles.emptyAlbumContent}>
                 <View style={styles.emptyAlbumIconCircle}>
-                  <Ionicons name="camera-outline" size={28} color={colors.brand.blue} />
+                  <Ionicons name="filter-outline" size={26} color={colors.brand.coral} />
                 </View>
                 <View style={{ flex: 1, marginLeft: spacing[3] }}>
                   <Typography variant="label" color={colors.brand.navy} style={{ fontWeight: '700' }}>
-                    {t.home.emptyAlbumTitle}
+                    {t.home.albumEmptyFilter}
                   </Typography>
                   <Typography variant="caption" color={colors.text.secondary} style={{ marginTop: 2 }}>
-                    {t.home.emptyAlbumDesc}
+                    {t.home.albumEmptyFilterDesc}
                   </Typography>
                 </View>
               </View>
             </Card>
+          ) : albumViewMode === 'list' ? (
+            /* Clean Simple List View as requested */
+            <View style={styles.tripListWrap}>
+              {filteredAlbumTrips.map((itemTrip) => {
+                const stage = getStageInfo(itemTrip.status);
+                const coverPhoto = getTripCoverPhoto(itemTrip.id);
+                return (
+                  <Pressable
+                    key={itemTrip.id}
+                    style={({ pressed }) => [
+                      styles.tripListCard,
+                      {
+                        backgroundColor: colors.surface.card,
+                        borderColor: colors.border.default,
+                      },
+                      pressed && { opacity: 0.92, transform: [{ scale: 0.995 }] },
+                    ]}
+                    onPress={() => router.push(`/trip/${itemTrip.id}`)}
+                  >
+                    {/* Left: Event Photo Thumbnail */}
+                    <View style={[styles.tripListThumbWrap, { backgroundColor: isDarkMode ? '#1E293B' : '#F1F5F9' }]}>
+                      {coverPhoto ? (
+                        <Image source={{ uri: coverPhoto }} style={styles.tripListThumbImage} resizeMode="cover" />
+                      ) : (
+                        <View style={[styles.tripListThumbPlaceholder, { backgroundColor: isDarkMode ? '#1E293B' : '#F1F5F9' }]}>
+                          <Ionicons
+                            name={itemTrip.status === 'completed' ? 'trophy-outline' : 'image-outline'}
+                            size={24}
+                            color={itemTrip.status === 'completed' ? colors.brand.coral : colors.brand.blue}
+                          />
+                          <Typography variant="caption" color={colors.text.muted} style={styles.noPhotoMiniText}>
+                            {t.home.noCoverPhotoText}
+                          </Typography>
+                        </View>
+                      )}
+                    </View>
+
+                    {/* Middle: Title, Destination, Dates & Duration */}
+                    <View style={styles.tripListBody}>
+                      <View style={styles.tripListTopRow}>
+                        <Typography
+                          variant="label"
+                          color={colors.brand.navy}
+                          style={styles.tripListTitle}
+                          numberOfLines={1}
+                        >
+                          {itemTrip.name}
+                        </Typography>
+                        <Badge
+                          label={stage.label}
+                          variant={stage.badgeVariant}
+                          size="sm"
+                          dot
+                        />
+                      </View>
+
+                      <View style={styles.tripListMetaRow}>
+                        <Ionicons name="location-sharp" size={12} color={colors.brand.coral} />
+                        <Typography
+                          variant="caption"
+                          color={colors.brand.coral}
+                          style={styles.tripListDestText}
+                          numberOfLines={1}
+                        >
+                          {itemTrip.destination}
+                        </Typography>
+                      </View>
+
+                      <View style={styles.tripListDatesRow}>
+                        <Ionicons name="calendar-outline" size={11} color={colors.text.muted} />
+                        <Typography
+                          variant="caption"
+                          color={colors.text.secondary}
+                          style={styles.tripListDateText}
+                          numberOfLines={1}
+                        >
+                          {formatDateRange(itemTrip.startDate, itemTrip.endDate, language)} • {formatTripDurationLabel(itemTrip.startDate, itemTrip.endDate, language)}
+                        </Typography>
+                      </View>
+                    </View>
+
+                    {/* Right: Chevron */}
+                    <Ionicons name="chevron-forward" size={16} color={colors.text.muted} style={{ marginLeft: 4 }} />
+                  </Pressable>
+                );
+              })}
+            </View>
           ) : (
-            <View style={{ paddingVertical: spacing[2], alignItems: 'center' }}>
-              <Typography variant="caption" color={colors.text.muted} style={{ textAlign: 'center' }}>
-                {t.home.albumNoMomentsYet}
+            /* Grid View */
+            <View style={styles.tripGridContainer}>
+              {filteredAlbumTrips.map((itemTrip) => {
+                const stage = getStageInfo(itemTrip.status);
+                const coverPhoto = getTripCoverPhoto(itemTrip.id);
+                return (
+                  <Pressable
+                    key={itemTrip.id}
+                    style={({ pressed }) => [
+                      styles.tripGridCard,
+                      {
+                        backgroundColor: colors.surface.card,
+                        borderColor: colors.border.default,
+                      },
+                      pressed && { opacity: 0.92, transform: [{ scale: 0.985 }] },
+                    ]}
+                    onPress={() => router.push(`/trip/${itemTrip.id}`)}
+                  >
+                    {/* Top: Photo Cover */}
+                    <View style={[styles.tripGridImageWrap, { backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0' }]}>
+                      {coverPhoto ? (
+                        <Image source={{ uri: coverPhoto }} style={styles.tripGridImage} resizeMode="cover" />
+                      ) : (
+                        <View style={[styles.tripGridPlaceholder, { backgroundColor: isDarkMode ? '#1E293B' : '#F1F5F9' }]}>
+                          <Ionicons
+                            name={itemTrip.status === 'completed' ? 'trophy-outline' : 'image-outline'}
+                            size={28}
+                            color={itemTrip.status === 'completed' ? colors.brand.coral : colors.brand.blue}
+                          />
+                          <Typography variant="caption" color={colors.text.muted} style={{ fontSize: 10, marginTop: 2 }}>
+                            {t.home.noCoverPhotoText}
+                          </Typography>
+                        </View>
+                      )}
+
+                      {/* Top Right Floating Badge */}
+                      <View style={styles.tripGridStatusPill}>
+                        <Badge
+                          label={stage.label}
+                          variant={stage.badgeVariant}
+                          size="sm"
+                          dot
+                        />
+                      </View>
+
+                      {/* Bottom Left Floating Duration Pill */}
+                      <View style={styles.tripGridDurationPill}>
+                        <Typography variant="caption" color="#FFFFFF" style={{ fontSize: 10, fontWeight: '700' }}>
+                          {formatTripDurationLabel(itemTrip.startDate, itemTrip.endDate, language)}
+                        </Typography>
+                      </View>
+                    </View>
+
+                    {/* Bottom: Body */}
+                    <View style={styles.tripGridBody}>
+                      <Typography variant="label" color={colors.brand.navy} style={styles.tripGridTitle} numberOfLines={1}>
+                        {itemTrip.name}
+                      </Typography>
+
+                      <View style={styles.tripGridMetaRow}>
+                        <Ionicons name="location-sharp" size={11} color={colors.brand.coral} />
+                        <Typography variant="caption" color={colors.brand.coral} style={styles.tripGridDestText} numberOfLines={1}>
+                          {itemTrip.destination}
+                        </Typography>
+                      </View>
+
+                      <View style={styles.tripGridMetaRow}>
+                        <Ionicons name="calendar-outline" size={11} color={colors.text.muted} />
+                        <Typography variant="caption" color={colors.text.muted} style={styles.tripGridDateText} numberOfLines={1}>
+                          {formatDateRange(itemTrip.startDate, itemTrip.endDate, language)}
+                        </Typography>
+                      </View>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
+
+          {/* 4. Sub-section: Captured Photo Memories Gallery (if any) */}
+          {moments.length > 0 && (
+            <View style={styles.photoMemoriesSection}>
+              <View style={styles.subSectionHeader}>
+                <Ionicons name="camera" size={16} color={colors.brand.blue} />
+                <Typography variant="label" color={colors.brand.navy} style={styles.subSectionTitle}>
+                  {t.home.albumPhotoGalleryTitle}
+                </Typography>
+                <Badge
+                  label={`${moments.length}`}
+                  variant="primary"
+                  size="sm"
+                />
+              </View>
+              <Typography variant="caption" color={colors.text.secondary} style={{ marginBottom: spacing[3] }}>
+                {t.home.albumPhotoGalleryDesc}
               </Typography>
+
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.momentsHorizontalScroll}>
+                {sortedMoments.map((m) => (
+                  <Pressable
+                    key={m.id}
+                    style={[
+                      styles.momentMiniCard,
+                      { backgroundColor: colors.surface.card, borderColor: colors.border.default },
+                    ]}
+                    onPress={() => router.push(`/trip/${m.tripId}`)}
+                  >
+                    <View style={styles.momentMiniImageWrap}>
+                      {m.photoPath && !m.photoPath.startsWith('local://placeholder') ? (
+                        <Image source={{ uri: m.photoPath }} style={styles.momentMiniImage} />
+                      ) : (
+                        <View style={[styles.momentMiniPlaceholder, { backgroundColor: colors.surface.muted }]}>
+                          <Ionicons name="image-outline" size={24} color={colors.brand.blue} />
+                        </View>
+                      )}
+                    </View>
+                    <View style={styles.momentMiniBody}>
+                      <Typography variant="caption" color={colors.brand.navy} numberOfLines={1} style={{ fontWeight: '700' }}>
+                        {m.caption || 'Travel Memory'}
+                      </Typography>
+                      {m.locationName && (
+                        <Typography variant="caption" color={colors.brand.coral} numberOfLines={1} style={{ fontSize: 10 }}>
+                          {m.locationName}
+                        </Typography>
+                      )}
+                    </View>
+                  </Pressable>
+                ))}
+              </ScrollView>
             </View>
           )}
         </View>
@@ -980,6 +1085,192 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing[3],
     gap: spacing[2],
+  },
+  categoryScroll: {
+    paddingBottom: 4,
+    gap: 8,
+    marginBottom: spacing[3],
+  },
+  categoryPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radius.full,
+    borderWidth: 1,
+  },
+  tripListWrap: {
+    gap: 10,
+  },
+  tripListCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  tripListThumbWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+  },
+  tripListThumbImage: {
+    width: '100%',
+    height: '100%',
+  },
+  tripListThumbPlaceholder: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 2,
+  },
+  noPhotoMiniText: {
+    fontSize: 8,
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  tripListBody: {
+    flex: 1,
+    marginLeft: 10,
+    justifyContent: 'center',
+  },
+  tripListTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  tripListTitle: {
+    fontWeight: '700',
+    fontSize: 14,
+    flex: 1,
+    marginRight: 6,
+  },
+  tripListMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 3,
+  },
+  tripListDestText: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 3,
+  },
+  tripListDatesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  tripListDateText: {
+    fontSize: 11,
+    marginLeft: 4,
+  },
+  tripGridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: 12,
+  },
+  tripGridCard: {
+    width: '48.5%',
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  tripGridImageWrap: {
+    width: '100%',
+    height: 105,
+    position: 'relative',
+  },
+  tripGridImage: {
+    width: '100%',
+    height: '100%',
+  },
+  tripGridPlaceholder: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  tripGridStatusPill: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+  },
+  tripGridDurationPill: {
+    position: 'absolute',
+    bottom: 6,
+    left: 6,
+    backgroundColor: 'rgba(7, 27, 77, 0.8)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: radius.full,
+  },
+  tripGridBody: {
+    padding: 8,
+  },
+  tripGridTitle: {
+    fontWeight: '700',
+    fontSize: 13,
+    marginBottom: 2,
+  },
+  tripGridMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  tripGridDestText: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginLeft: 3,
+  },
+  tripGridDateText: {
+    fontSize: 10,
+    marginLeft: 3,
+  },
+  photoMemoriesSection: {
+    marginTop: 20,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.06)',
+  },
+  momentsHorizontalScroll: {
+    gap: 10,
+    paddingVertical: 4,
+  },
+  momentMiniCard: {
+    width: 140,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+    borderWidth: 1,
+  },
+  momentMiniImageWrap: {
+    width: '100%',
+    height: 85,
+    backgroundColor: '#000',
+  },
+  momentMiniImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  momentMiniPlaceholder: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  momentMiniBody: {
+    padding: 6,
   },
   sortSegmentWrap: {
     flexDirection: 'row',

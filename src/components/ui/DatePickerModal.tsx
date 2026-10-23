@@ -39,7 +39,7 @@ export const DatePickerModal: React.FC<DatePickerModalProps> = ({
   value,
   title,
   minDate,
-  language = 'id',
+  language = 'en',
   onConfirm,
   onClose,
 }) => {

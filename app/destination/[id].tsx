@@ -169,7 +169,7 @@ export default function DestinationDetailScreen() {
       setIsSavingNotes(true);
       await destinationRepository.update(id, { notes });
       setDestination((prev) => (prev ? { ...prev, notes } : prev));
-      Alert.alert('Sukses', t.destDetail.notesSaved);
+      Alert.alert(language === 'en' ? 'Success' : 'Sukses', t.destDetail.notesSaved);
     } catch {
       Alert.alert('Error', 'Failed to save notes.');
     } finally {

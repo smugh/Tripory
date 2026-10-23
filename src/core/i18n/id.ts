@@ -188,6 +188,17 @@ export const id: TranslationDictionary = {
     exportAlertDesc: 'Fitur ekspor catatan perjalanan lokal siap disimpan ke folder dokumen perangkat Anda.',
     ok: 'Oke',
     understood: 'Paham',
+
+    // Settings Menu List Subtitles
+    menuCategoriesDesc: 'Tambah atau hapus kategori inventaris & bawaan',
+    menuPermissionsDesc: 'Kamera, Foto, Lokasi, Email & Waktu',
+    menuBackupDesc: 'Pencadangan SQLite lokal dan pemulihan data',
+    menuLanguageDesc: 'English / Bahasa Indonesia',
+    menuAppearanceDesc: 'Mode gelap, getaran haptik & kontras',
+    menuPrivacyDesc: 'Penyimpanan lokal aman & ekspor ringkasan',
+    menuAboutDesc: 'Versi {version} • Aplikasi Perjalanan Lokal-First',
+    menuBadgeCategories: '{count} kategori',
+    menuBadgePermissions: '5 akses fitur',
   },
 
   // Layar Tab Perjalanan

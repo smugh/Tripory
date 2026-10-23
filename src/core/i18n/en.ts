@@ -186,6 +186,17 @@ export const en = {
     exportAlertDesc: 'Your trip archives are ready to be saved to your device document directory.',
     ok: 'OK',
     understood: 'Understood',
+
+    // Settings Menu List Subtitles
+    menuCategoriesDesc: 'Add or remove inventory & packing categories',
+    menuPermissionsDesc: 'Camera, Photos, Location, Email & Clock',
+    menuBackupDesc: 'Offline SQLite backup and data restore',
+    menuLanguageDesc: 'English / Bahasa Indonesia',
+    menuAppearanceDesc: 'Dark mode, haptic feedback & contrast',
+    menuPrivacyDesc: 'Offline-first storage & trip summary export',
+    menuAboutDesc: 'Version {version} • Offline-First Travel App',
+    menuBadgeCategories: '{count} categories',
+    menuBadgePermissions: '5 native features',
   },
 
   // Trips Tab Screen

@@ -122,6 +122,55 @@ export default function RootLayout() {
             headerBackTitle: t.trip.back,
           }}
         />
+        <Stack.Screen
+          name="settings/categories"
+          options={{
+            title: t.settings.categoriesSection,
+            headerBackTitle: t.trip.back,
+          }}
+        />
+        <Stack.Screen
+          name="settings/permissions"
+          options={{
+            title: t.settings.permissionsSection,
+            headerBackTitle: t.trip.back,
+          }}
+        />
+        <Stack.Screen
+          name="settings/backup"
+          options={{
+            title: t.settings.gmailSection,
+            headerBackTitle: t.trip.back,
+          }}
+        />
+        <Stack.Screen
+          name="settings/language"
+          options={{
+            title: t.settings.languageSection,
+            headerBackTitle: t.trip.back,
+          }}
+        />
+        <Stack.Screen
+          name="settings/appearance"
+          options={{
+            title: t.settings.appearanceSection,
+            headerBackTitle: t.trip.back,
+          }}
+        />
+        <Stack.Screen
+          name="settings/privacy"
+          options={{
+            title: t.settings.dataSection,
+            headerBackTitle: t.trip.back,
+          }}
+        />
+        <Stack.Screen
+          name="settings/about"
+          options={{
+            title: t.settings.aboutSection,
+            headerBackTitle: t.trip.back,
+          }}
+        />
       </Stack>
 
       {/* Branded Splash Screen Overlay with Primary Logo Centered */}

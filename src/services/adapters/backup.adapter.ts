@@ -29,7 +29,7 @@ export class LocalBackupProvider implements BackupProvider {
   async createBackupManifest(): Promise<BackupManifest> {
     return {
       formatVersion: '1.0',
-      appVersion: '1.0.0',
+      appVersion: '1.0.2',
       createdAt: new Date().toISOString(),
       tripCount: 0,
       mediaCount: 0,

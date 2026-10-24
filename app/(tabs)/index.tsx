@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { View, StyleSheet, ScrollView, Image, Pressable, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { spacing, radius, useThemeColors } from '@/core/theme';
+import { spacing, radius, fontFamily, useThemeColors } from '@/core/theme';
 import { Typography, Button, Card, Badge, ScreenContainer } from '@/components/ui';
 import { useTrips } from '@/hooks/useTrips';
 import { tripService } from '@/domains/trip/service';
@@ -22,7 +22,7 @@ export default function HomeScreen() {
   const { isDarkMode, toggleTheme } = useUIStore();
   const { t, format, language } = useI18n();
 
-  const { trips, isLoading, refreshTrips } = useTrips(true);
+  const { trips, planningTrips: visiblePlanningTrips, isLoading, refreshTrips } = useTrips(true);
   const [moments, setMoments] = useState<MomentRecord[]>([]);
   const [destinations, setDestinations] = useState<DestinationRecord[]>([]);
   const [albumSortOrder, setAlbumSortOrder] = useState<'newest' | 'oldest'>('newest');
@@ -63,13 +63,13 @@ export default function HomeScreen() {
   );
 
   // Ambil semua rencana perjalanan yang sedang aktif / dalam proses (bukan arsip selesai)
-  const planningTrips = trips.filter((t) => t.status !== 'completed');
+  const planningTrips = visiblePlanningTrips.filter((t) => t.status !== 'completed');
   // Jika semua trip sudah selesai atau belum ada trip aktif, tampilkan trip yang ada
-  const displayTrips = planningTrips.length > 0 ? planningTrips : trips.slice(0, 3);
+  const displayTrips = planningTrips.length > 0 ? planningTrips : visiblePlanningTrips.slice(0, 3);
 
-  const totalTrips = trips.length;
+  const totalTrips = trips.filter((trip) => trip.status === 'completed' || visiblePlanningTrips.some((entry) => entry.id === trip.id)).length;
   const completedTrips = trips.filter((t) => t.status === 'completed').length;
-  const activeCount = trips.filter(
+  const activeCount = visiblePlanningTrips.filter(
     (t) => t.status === 'ongoing' || t.status === 'preparing' || t.status === 'ready'
   ).length;
 
@@ -279,7 +279,7 @@ export default function HomeScreen() {
                   color={colors.brand.blue}
                   style={styles.sectionIcon}
                 />
-                <Typography variant="h3" color={colors.text.primary}>
+                <Typography variant="h3" color={colors.text.primary} style={styles.sectionHeading}>
                   {t.home.myPlansHeading}
                 </Typography>
               </View>
@@ -433,7 +433,7 @@ export default function HomeScreen() {
           <View style={styles.albumHeader}>
             <View style={styles.albumHeaderLeft}>
               <Ionicons name="images-outline" size={20} color={colors.brand.navy} />
-              <Typography variant="h3" color={colors.text.primary} style={styles.albumTitle}>
+              <Typography variant="h3" color={colors.text.primary} style={[styles.sectionHeading, styles.albumTitle]}>
                 {t.home.albumTitle}
               </Typography>
             </View>
@@ -524,10 +524,10 @@ export default function HomeScreen() {
                   <Ionicons name="filter-outline" size={26} color={colors.brand.coral} />
                 </View>
                 <View style={{ flex: 1, marginLeft: spacing[3] }}>
-                  <Typography variant="label" color={colors.brand.navy} style={{ fontWeight: '700' }}>
+                  <Typography variant="label" color={colors.brand.navy} style={styles.emptyAlbumTitle}>
                     {t.home.albumEmptyFilter}
                   </Typography>
-                  <Typography variant="caption" color={colors.text.secondary} style={{ marginTop: 2 }}>
+                  <Typography variant="caption" color={colors.text.secondary} style={styles.emptyAlbumDescription}>
                     {t.home.albumEmptyFilterDesc}
                   </Typography>
                 </View>
@@ -840,6 +840,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  sectionHeading: {
+    fontFamily: fontFamily.semiBold,
+    fontSize: 17,
+    lineHeight: 23,
+    fontWeight: '600',
+    letterSpacing: 0,
+  },
   sectionIcon: {
     marginRight: 6,
   },
@@ -867,9 +874,11 @@ const styles = StyleSheet.create({
     marginRight: spacing[2],
   },
   planningTripName: {
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: -0.2,
+    fontFamily: fontFamily.semiBold,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '600',
+    letterSpacing: 0,
   },
   planningMetaRow: {
     flexDirection: 'row',
@@ -888,8 +897,10 @@ const styles = StyleSheet.create({
     height: 12,
   },
   planningMetaText: {
+    fontFamily: fontFamily.regular,
     fontSize: 12,
-    fontWeight: '500',
+    lineHeight: 18,
+    fontWeight: '400',
   },
   planningProgressRow: {
     flexDirection: 'row',
@@ -898,8 +909,10 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   progressStepText: {
+    fontFamily: fontFamily.regular,
     fontSize: 11,
-    fontWeight: '600',
+    lineHeight: 16,
+    fontWeight: '400',
   },
   slimTrack: {
     height: 5,
@@ -964,7 +977,6 @@ const styles = StyleSheet.create({
   },
   albumTitle: {
     marginLeft: 6,
-    fontWeight: '700',
   },
   albumCarousel: {
     paddingRight: spacing[4],
@@ -1024,6 +1036,20 @@ const styles = StyleSheet.create({
   },
   emptyAlbumCard: {
     padding: spacing[4],
+  },
+  emptyAlbumTitle: {
+    fontFamily: fontFamily.medium,
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: '500',
+    letterSpacing: 0,
+  },
+  emptyAlbumDescription: {
+    marginTop: 3,
+    fontFamily: fontFamily.regular,
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: '400',
   },
   emptyAlbumContent: {
     flexDirection: 'row',
@@ -1254,8 +1280,10 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
   },
   controlPillText: {
-    fontWeight: '700',
+    fontFamily: fontFamily.medium,
+    fontWeight: '500',
     fontSize: 11,
+    lineHeight: 16,
   },
   viewModeToggleWrap: {
     flexDirection: 'row',

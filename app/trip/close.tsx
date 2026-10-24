@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, Alert, Pressable, ActivityIndicator } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, Redirect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, radius, useThemeColors } from '@/core/theme';
 import { Typography, Card, Badge, Button, ScreenContainer } from '@/components/ui';
@@ -16,8 +16,10 @@ import { MomentRecord } from '@/db/schema/moments';
 import { formatDateRange } from '@/core/utils';
 import { useUIStore } from '@/stores/ui-store';
 import { useI18n } from '@/core/i18n';
+import { ItemStatusPicker, FinalItemState } from '@/components/packing/ItemStatusPicker';
+import { unresolvedReturnItems } from '@/domains/trip-closure/validation';
 
-type ReturnFilter = 'all' | 'pending' | 'returned';
+type ReturnFilter = 'all' | 'pending' | 'returned' | 'missing';
 
 export default function TripCloseScreen() {
   const { tripId } = useLocalSearchParams<{ tripId: string }>();
@@ -65,34 +67,26 @@ export default function TripCloseScreen() {
     loadData();
   }, [loadData]);
 
-  // Toggle individual item return status
-  const handleToggleReturn = async (item: TripItemRecord) => {
-    const isReturned = item.state === 'returned';
-    const nextState: TripItemRecord['state'] = isReturned ? 'packed' : 'returned';
+  const [isUpdatingItems, setIsUpdatingItems] = useState(false);
+  const handleSetFinalState = async (item: TripItemRecord, state: FinalItemState) => {
+    if (isClosing || isUpdatingItems) return;
+    setIsUpdatingItems(true);
     try {
-      await packingRepository.updateItemState(item.id, nextState);
-      setItems((prev) =>
-        prev.map((i) => (i.id === item.id ? { ...i, state: nextState } : i))
-      );
-    } catch {
-      Alert.alert('Error', t.trip.alertItemUpdateError);
-    }
+      await packingRepository.updateItemState(item.id, state);
+      setItems((previous) => previous.map((entry) => entry.id === item.id ? { ...entry, state } : entry));
+    } catch { Alert.alert(language === 'en' ? 'Error' : 'Gagal', t.trip.alertItemUpdateError); }
+    finally { setIsUpdatingItems(false); }
   };
 
-  // Verify all items returned in 1 tap
   const handleMarkAllReturned = async () => {
+    if (isClosing || isUpdatingItems) return;
+    setIsUpdatingItems(true);
     try {
-      for (const item of items) {
-        if (item.state !== 'returned') {
-          await packingRepository.updateItemState(item.id, 'returned');
-        }
-      }
-      setItems((prev) => prev.map((i) => ({ ...i, state: 'returned' as const })));
-    } catch {
-      Alert.alert('Error', t.trip.alertItemUpdateError);
-    }
+      for (const item of unresolvedReturnItems(items)) await packingRepository.updateItemState(item.id, 'returned');
+      setItems((previous) => previous.map((item) => item.state === 'missing' ? item : { ...item, state: 'returned' as const }));
+    } catch { Alert.alert(language === 'en' ? 'Error' : 'Gagal', t.trip.alertItemUpdateError); }
+    finally { setIsUpdatingItems(false); }
   };
-
   // Execute trip closure
   const handleExecuteClose = async () => {
     if (!tripId) return;
@@ -139,13 +133,17 @@ export default function TripCloseScreen() {
     );
   }
 
+  if (trip.status === 'completed') return <Redirect href={{ pathname: '/trip/[id]', params: { id: trip.id } }} />;
+
   const returnedCount = items.filter((i) => i.state === 'returned').length;
-  const unreturnedCount = items.length - returnedCount;
+  const unreturnedCount = unresolvedReturnItems(items).length;
+  const missingCount = items.filter((item) => item.state === 'missing').length;
   const allReturned = items.length > 0 && returnedCount === items.length;
 
   const filteredItems = items.filter((item) => {
     if (filter === 'returned') return item.state === 'returned';
-    if (filter === 'pending') return item.state !== 'returned';
+    if (filter === 'pending') return item.state !== 'returned' && item.state !== 'missing';
+    if (filter === 'missing') return item.state === 'missing';
     return true;
   });
 
@@ -185,7 +183,7 @@ export default function TripCloseScreen() {
                 {t.tripClose.statStops}
               </Typography>
               <Typography variant="h2" color="#FFFFFF" style={styles.statNumber}>
-                {destinations.length}
+                {destinations.filter((stop) => stop.isVisited).length}/{destinations.length}
               </Typography>
             </View>
 
@@ -225,7 +223,8 @@ export default function TripCloseScreen() {
           <View style={[styles.statusBanner, { backgroundColor: 'rgba(245, 158, 11, 0.12)', borderColor: themeColors.status.warning }]}>
             <Ionicons name="alert-circle-outline" size={22} color={themeColors.status.warning} />
             <Typography variant="caption" color={themeColors.brand.navy} style={styles.bannerText}>
-              {format(t.tripClose.unreturnedNotice, { count: unreturnedCount })}
+              {unreturnedCount > 0 ? format(t.tripClose.unreturnedNotice, { count: unreturnedCount })
+                : (language === 'en' ? `${missingCount} missing items will be recorded in your trip album.` : `${missingCount} barang hilang akan dicatat di album perjalanan.`)}
             </Typography>
           </View>
         )}
@@ -247,11 +246,11 @@ export default function TripCloseScreen() {
           </View>
 
           {/* Quick Mark All Returned Button */}
-          {items.length > 0 && !allReturned && (
+          {unreturnedCount > 0 && (
             <Button
               variant="secondary"
               size="sm"
-              label={t.tripClose.checkAllReturnedBtn}
+              label={language === 'en' ? 'Confirm remaining items returned' : 'Pastikan barang tersisa sudah pulang'}
               onPress={handleMarkAllReturned}
               style={{ marginTop: 10, marginBottom: 12 }}
             />
@@ -264,6 +263,7 @@ export default function TripCloseScreen() {
                 { key: 'all', label: format(t.tripClose.filterAll, { count: items.length }) },
                 { key: 'pending', label: format(t.tripClose.filterPending, { count: unreturnedCount }) },
                 { key: 'returned', label: format(t.tripClose.filterReturned, { count: returnedCount }) },
+                { key: 'missing', label: language === 'en' ? `Missing (${missingCount})` : `Hilang (${missingCount})` },
               ] as const
             ).map((chip) => (
               <Pressable
@@ -298,71 +298,35 @@ export default function TripCloseScreen() {
             </View>
           ) : (
             <View style={styles.itemsList}>
-              {filteredItems.map((item) => {
-                const isReturned = item.state === 'returned';
-                return (
-                  <Pressable
-                    key={item.id}
-                    style={[
-                      styles.itemRow,
-                      {
-                        backgroundColor: themeColors.surface.page,
-                        borderColor: isReturned ? 'rgba(22, 163, 74, 0.3)' : themeColors.border.default,
-                      },
-                    ]}
-                    onPress={() => handleToggleReturn(item)}
-                  >
-                    {/* Checkbox */}
-                    <View
-                      style={[
-                        styles.checkbox,
-                        isReturned && {
-                          backgroundColor: themeColors.status.success,
-                          borderColor: themeColors.status.success,
-                        },
-                      ]}
-                    >
-                      {isReturned && <Ionicons name="checkmark" size={16} color="#FFFFFF" />}
+              {filteredItems.map((item) => (
+                <View key={item.id} style={[styles.itemRow, { flexDirection: 'column', alignItems: 'stretch', backgroundColor: themeColors.surface.page, borderColor: item.state === 'missing' ? themeColors.status.error : themeColors.border.default }]}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <View style={{ flex: 1 }}>
+                      <Typography variant="label" color={themeColors.brand.navy}>{item.customName}</Typography>
+                      <Typography variant="caption" color={themeColors.text.muted}>{item.category} · Qty: {item.quantity}</Typography>
                     </View>
-
-                    {/* Item info */}
-                    <View style={{ flex: 1, marginRight: 8 }}>
-                      <Typography
-                        variant="body"
-                        color={isReturned ? themeColors.text.muted : themeColors.brand.navy}
-                        style={[
-                          styles.itemName,
-                          isReturned && styles.itemReturnedStrike,
-                        ]}
-                      >
-                        {item.customName}
-                      </Typography>
-                      <Typography variant="caption" color={themeColors.text.muted}>
-                        {item.category} • Qty: {item.quantity}
-                      </Typography>
-                    </View>
-
-                    {/* Status Badge */}
-                    <Badge
-                      label={isReturned ? t.tripClose.statusReturned : t.tripClose.statusPending}
-                      variant={isReturned ? 'success' : 'warning'}
-                      size="sm"
-                    />
-                  </Pressable>
-                );
-              })}
+                    <Badge label={item.state === 'returned' ? t.tripClose.statusReturned : item.state === 'missing' ? (language === 'en' ? 'Missing' : 'Hilang') : t.tripClose.statusPending} variant={item.state === 'returned' ? 'success' : 'warning'} size="sm" />
+                  </View>
+                  <ItemStatusPicker finalCheck itemName={item.customName} value={item.state} disabled={isClosing || isUpdatingItems} onSelect={(state) => { if (state !== 'used' && state !== 'packed') handleSetFinalState(item, state); }} />
+                </View>
+              ))}
             </View>
           )}
         </Card>
 
         {/* Action Buttons */}
         <View style={styles.footerActions}>
+          <Typography variant="caption" color={themeColors.text.secondary} style={{ marginBottom: 10 }}>
+            {language === 'en'
+              ? `${unreturnedCount} items still need a final status. ${missingCount} missing items will be saved in the album. Once closed, this trip becomes read-only.`
+              : `${unreturnedCount} barang masih perlu status akhir. ${missingCount} barang hilang akan disimpan di album. Setelah ditutup, trip hanya bisa dibaca.`}
+          </Typography>
           <Button
             variant="destructive"
             size="lg"
             label={isClosing ? t.tripClose.closingTrip : t.tripClose.closeTripBtn}
             onPress={handleExecuteClose}
-            disabled={isClosing}
+            disabled={isClosing || isUpdatingItems}
           />
 
           <Button
@@ -370,7 +334,7 @@ export default function TripCloseScreen() {
             size="md"
             label={t.tripClose.returnToTripBtn}
             onPress={() => router.back()}
-            disabled={isClosing}
+            disabled={isClosing || isUpdatingItems}
             style={{ marginTop: 6 }}
           />
         </View>

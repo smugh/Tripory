@@ -145,6 +145,45 @@ export const MIGRATIONS: MigrationStep[] = [
       ALTER TABLE destinations ADD COLUMN is_visited INTEGER NOT NULL DEFAULT 0;
     `,
   },
+  {
+    version: 6,
+    name: '0005_preserve_completed_trip_archive',
+    sql: `
+      CREATE TABLE IF NOT EXISTS item_events (
+        id TEXT PRIMARY KEY NOT NULL,
+        trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+        trip_item_id TEXT NOT NULL REFERENCES trip_items(id) ON DELETE CASCADE,
+        destination_id TEXT REFERENCES destinations(id) ON DELETE SET NULL,
+        state TEXT NOT NULL,
+        occurred_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_item_events_trip ON item_events(trip_id, occurred_at);
+      CREATE TABLE IF NOT EXISTS trip_archives (
+        trip_id TEXT PRIMARY KEY NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+        payload TEXT NOT NULL,
+        closed_at TEXT NOT NULL
+      );
+      CREATE TRIGGER IF NOT EXISTS lock_completed_trip
+      BEFORE UPDATE ON trips WHEN OLD.status = 'completed'
+      BEGIN SELECT RAISE(ABORT, 'Completed trips are read-only'); END;
+      CREATE TRIGGER IF NOT EXISTS lock_trip_archive
+      BEFORE UPDATE ON trip_archives
+      BEGIN SELECT RAISE(ABORT, 'Trip archives are read-only'); END;
+    `,
+  },
+  {
+    version: 7,
+    name: '0006_add_destination_planned_date',
+    sql: `ALTER TABLE destinations ADD COLUMN planned_date TEXT;`,
+  },
+  {
+    version: 8,
+    name: '0007_remove_plans_without_deleting_memories',
+    sql: `CREATE TABLE IF NOT EXISTS planning_removals (
+      trip_id TEXT PRIMARY KEY NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+      removed_at TEXT NOT NULL
+    );`,
+  },
 ];
 
 /**

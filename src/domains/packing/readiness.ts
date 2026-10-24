@@ -22,20 +22,20 @@ export function computeReadiness(
     };
   }
 
-  const packedItems = items.filter((i) => i.state !== 'planned');
+  const packedItems = items.filter((i) => i.state !== 'planned' && i.state !== 'missing');
   const packedCount = packedItems.length;
   const percentage = Math.round((packedCount / totalItems) * 100);
 
   // Blocker kritis: barang must_have yang statusnya masih 'planned'
-  const criticalBlockers = items.filter((i) => i.priority === 'must_have' && i.state === 'planned');
+  const criticalBlockers = items.filter((i) => i.priority === 'must_have' && (i.state === 'planned' || i.state === 'missing'));
   const isReadyForDeparture = criticalBlockers.length === 0;
 
   let statusLabel = language === 'en' ? 'Ready to Go' : 'Siap Berangkat';
   if (criticalBlockers.length > 0) {
     statusLabel =
       language === 'en'
-        ? `${criticalBlockers.length} essential ${criticalBlockers.length === 1 ? 'item needs' : 'items need'} packing`
-        : `${criticalBlockers.length} barang penting belum disiapkan`;
+        ? `${criticalBlockers.length} essential ${criticalBlockers.length === 1 ? 'item needs' : 'items need'} attention (unpacked or missing)`
+        : `${criticalBlockers.length} barang penting perlu diperiksa (belum dipacking atau hilang)`;
   } else if (packedCount < totalItems) {
     statusLabel =
       language === 'en'

@@ -2,6 +2,7 @@ import { eq, desc } from 'drizzle-orm';
 import { db } from '../client';
 import { moments, MomentRecord, NewMomentRecord } from '../schema/moments';
 import { generateId } from '@/core/utils/id';
+import { assertTripEditable, assertTripRecordEditable } from './trip-editability';
 
 export const momentRepository = {
   async getAll(): Promise<MomentRecord[]> {
@@ -22,6 +23,7 @@ export const momentRepository = {
   },
 
   async create(data: Omit<NewMomentRecord, 'id' | 'createdAt'>): Promise<MomentRecord> {
+    assertTripEditable(data.tripId);
     const now = new Date().toISOString();
     const newRecord: NewMomentRecord = {
       ...data,
@@ -33,6 +35,7 @@ export const momentRepository = {
   },
 
   async delete(id: string): Promise<void> {
+    assertTripRecordEditable('moments', id);
     db.delete(moments).where(eq(moments.id, id)).run();
   },
 };

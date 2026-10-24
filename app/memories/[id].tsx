@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ScreenContainer, Typography, Card, Badge } from '@/components/ui';
 import { useThemeColors, spacing, radius } from '@/core/theme';
@@ -15,6 +15,8 @@ import { DestinationRecord } from '@/db/schema/destinations';
 import { MomentRecord } from '@/db/schema/moments';
 import { TripItemRecord } from '@/db/schema/trip-items';
 import { formatDateRange, formatTripDurationLabel } from '@/core/utils';
+import { archiveRepository } from '@/db/repositories/archive.repository';
+import { getDestinationDate, formatDestinationDate } from '@/core/utils/destination-schedule';
 
 type StoryEntry =
   | { kind: 'destination'; key: string; sortAt: number; destination: DestinationRecord }
@@ -38,7 +40,16 @@ export default function TravelMemoryScreen() {
     if (!id) return;
     try {
       const tripRecord = await tripRepository.getById(id);
-      if (!tripRecord) return;
+      if (!tripRecord) { setTrip(null); return; }
+      if (tripRecord.status === 'completed') {
+        const archive = await archiveRepository.getCompleted(id);
+        setTrip(archive.trip);
+        setIsEditing(false);
+        setDestinations(archive.destinations);
+        setMoments(archive.moments);
+        setMissingItems(archive.items.filter((item) => item.state === 'missing' || archive.events?.some((event) => event.tripItemId === item.id && event.state === 'missing')));
+        return;
+      }
       setTrip(tripRecord);
       setNotesDraft(tripRecord.notes ?? '');
       const [tripStops, tripMoments, tripItems] = await Promise.all([
@@ -56,12 +67,12 @@ export default function TravelMemoryScreen() {
     }
   }, [id]);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     loadStory();
-  }, [loadStory]);
+  }, [loadStory]));
 
   const saveEdits = async () => {
-    if (!trip) return;
+    if (!trip || trip.status === 'completed') return;
     try {
       setIsSaving(true);
       const notes = notesDraft.trim() || null;
@@ -76,7 +87,7 @@ export default function TravelMemoryScreen() {
   };
 
   const addMemoryPhoto = async (useCamera: boolean) => {
-    if (!trip) return;
+    if (!trip || trip.status === 'completed') return;
     try {
       setIsSaving(true);
       const media = useCamera
@@ -115,10 +126,8 @@ export default function TravelMemoryScreen() {
 
   const storyEntries = useMemo<StoryEntry[]>(() => {
     if (!trip) return [];
-    const start = new Date(trip.startDate);
     const destinationEntries: StoryEntry[] = destinations.map((destination) => {
-      const day = new Date(start);
-      day.setDate(day.getDate() + Math.max(0, destination.dayNumber - 1));
+      const day = new Date(`${getDestinationDate(destination, trip.startDate)}T${destination.plannedTime || '00:00'}:00`);
       return {
         kind: 'destination',
         key: `destination-${destination.id}`,
@@ -171,12 +180,12 @@ export default function TravelMemoryScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         <View style={styles.hero}>
           {coverImage ? (
-            <Image source={{ uri: coverImage }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+            <Image source={{ uri: coverImage }} style={StyleSheet.absoluteFill} resizeMode="cover" />
           ) : (
-            <View style={[StyleSheet.absoluteFillObject, styles.heroFallback]} />
+            <View style={[StyleSheet.absoluteFill, styles.heroFallback]} />
           )}
           <View style={styles.heroShade} />
-          {isEditing ? (
+          {isEditing && trip.status !== 'completed' ? (
             <Pressable onPress={promptAddPhoto} style={styles.heroPhotoAction} disabled={isSaving}>
               <Ionicons name="camera-outline" size={17} color="#FFFFFF" />
               <Typography variant="caption" color="#FFFFFF" style={styles.heroPhotoActionText}>
@@ -211,21 +220,34 @@ export default function TravelMemoryScreen() {
           </View>
         </View>
 
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push(`/trip/${trip.id}`)}
+          style={[styles.detailsButton, { backgroundColor: colors.brand.navy }]}
+        >
+          <Ionicons name="document-text-outline" size={21} color="#FFFFFF" />
+          <View style={{ flex: 1 }}>
+            <Typography variant="label" color="#FFFFFF">{language === 'en' ? 'View full trip details' : 'Lihat detail lengkap perjalanan'}</Typography>
+            <Typography variant="caption" color="#D4E2F2">{language === 'en' ? 'Plans, activities & items · Read only' : 'Rencana, aktivitas & barang · Hanya baca'}</Typography>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color="#FFFFFF" />
+        </Pressable>
+
         {trip.hasMissingItems || missingItems.length > 0 ? (
           <View style={styles.missingNote}>
             <Ionicons name="alert-circle" size={20} color="#B54708" />
             <View style={styles.missingNoteCopy}>
               <Typography variant="label" color="#8A3412">
-                {language === 'en' ? 'A few things did not make it home' : 'Ada barang yang belum kembali'}
+                {language === 'en' ? 'Lost & missing items' : 'Barang hilang & belum kembali'}
               </Typography>
               <Typography variant="caption" color="#8A3412" style={styles.missingNoteText}>
                 {language === 'en'
-                  ? 'These items were marked missing during the return check.'
-                  : 'Barang berikut ditandai belum ditemukan saat cek kepulangan.'}
+                  ? 'Losses recorded during this trip, with their final return status.'
+                  : 'Kejadian kehilangan selama perjalanan, beserta status akhirnya.'}
               </Typography>
               {missingItems.map((item) => (
                 <Typography key={item.id} variant="caption" color="#8A3412" style={styles.missingItemName}>
-                  • {item.customName}{item.quantity > 1 ? ` × ${item.quantity}` : ''}
+                  • {item.customName}{item.quantity > 1 ? ` × ${item.quantity}` : ''} · {item.state === 'missing' ? (language === 'en' ? 'Not returned' : 'Belum kembali') : (language === 'en' ? 'Found again' : 'Ditemukan kembali')}
                 </Typography>
               ))}
             </View>
@@ -267,14 +289,14 @@ export default function TravelMemoryScreen() {
                   {entry.kind === 'destination' ? (
                     <Card style={styles.destinationCard}>
                       <View style={styles.dayRow}>
-                        <Badge label={`${language === 'en' ? 'DAY' : 'HARI'} ${entry.destination.dayNumber}`} variant="accent" size="sm" />
+                        <Badge label={formatDestinationDate(getDestinationDate(entry.destination, trip.startDate), language)} variant="accent" size="sm" />
                         {entry.destination.plannedTime ? (
                           <Typography variant="caption" color={colors.text.muted}>{entry.destination.plannedTime}</Typography>
                         ) : null}
                       </View>
                       <Typography variant="h3" color={colors.brand.navy} style={styles.destinationTitle}>{entry.destination.name}</Typography>
                       {entry.destination.activity ? (
-                        <Typography variant="body" color={colors.text.secondary}>{entry.destination.activity}</Typography>
+                        <Typography variant="body" color={colors.text.secondary} style={styles.destinationActivity}>{entry.destination.activity}</Typography>
                       ) : null}
                       {entry.destination.locationLabel ? (
                         <View style={styles.locationLabel}>
@@ -339,12 +361,12 @@ export default function TravelMemoryScreen() {
             />
           ) : (
             <Typography variant="body" color={trip.notes ? colors.text.primary : colors.text.muted} style={styles.notesBody}>
-              {trip.notes || (language === 'en' ? 'No notes yet. Use the button below to add a detail from this journey.' : 'Belum ada catatan. Gunakan tombol di bawah untuk menambahkan cerita perjalanan ini.')}
+              {trip.notes || (language === 'en' ? 'No notes were saved for this journey.' : 'Tidak ada catatan yang disimpan untuk perjalanan ini.')}
             </Typography>
           )}
         </View>
 
-        <Pressable
+        {trip.status !== 'completed' && <Pressable
           onPress={isEditing ? saveEdits : () => { setNotesDraft(trip.notes ?? ''); setIsEditing(true); }}
           style={({ pressed }) => [styles.bottomEditButton, pressed && !isSaving ? styles.bottomEditButtonPressed : null]}
           disabled={isSaving}
@@ -357,7 +379,7 @@ export default function TravelMemoryScreen() {
           <Typography variant="label" color="#FFFFFF" style={styles.bottomEditButtonText}>
             {isSaving ? (language === 'en' ? 'Saving…' : 'Menyimpan…') : isEditing ? (language === 'en' ? 'Save changes' : 'Simpan perubahan') : (language === 'en' ? 'Edit album' : 'Edit album')}
           </Typography>
-        </Pressable>
+        </Pressable>}
 
         <View style={styles.closingNote}>
           <Ionicons name="heart" size={15} color={colors.brand.coral} />
@@ -371,12 +393,13 @@ export default function TravelMemoryScreen() {
 }
 
 const styles = StyleSheet.create({
+  detailsButton: { marginHorizontal: spacing[4], marginBottom: spacing[4], padding: spacing[3], borderRadius: radius.lg, flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 56 },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing[6] },
   backFallback: { marginTop: spacing[3], padding: spacing[2] },
   scrollContent: { paddingBottom: spacing[8] },
   hero: { height: 300, overflow: 'hidden', justifyContent: 'space-between', backgroundColor: '#17345E' },
   heroFallback: { backgroundColor: '#17345E' },
-  heroShade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(5, 18, 44, 0.40)' },
+  heroShade: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(5, 18, 44, 0.40)' },
   heroPhotoAction: {
     position: 'absolute', top: spacing[3], right: spacing[4], minHeight: 40,
     paddingHorizontal: spacing[3], borderRadius: radius.full, flexDirection: 'row',
@@ -424,7 +447,8 @@ const styles = StyleSheet.create({
   timelineContent: { flex: 1, paddingBottom: spacing[3] },
   destinationCard: { padding: spacing[3] },
   dayRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  destinationTitle: { marginTop: spacing[1], marginBottom: 2 },
+  destinationTitle: { fontSize: 15, lineHeight: 20, marginTop: spacing[1], marginBottom: 2 },
+  destinationActivity: { fontSize: 12, lineHeight: 17 },
   locationLabel: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: spacing[2] },
   destinationImage: { width: '100%', height: 125, borderRadius: radius.md, marginTop: spacing[2] },
   memoryCard: { borderRadius: radius.lg, overflow: 'hidden', borderWidth: 1 },

@@ -1,6 +1,10 @@
 import { CloseTripOptions, ClosureResult } from './types';
 import { tripRepository } from '@/db/repositories/trip.repository';
 import { packingRepository } from '@/db/repositories/packing.repository';
+import { archiveRepository } from '@/db/repositories/archive.repository';
+import { getNativeDatabase } from '@/db/client';
+import { assertTripEditable } from '@/db/repositories/trip-editability';
+import { requireFinalItemStatuses } from './validation';
 
 export const tripClosureService = {
   /**
@@ -9,32 +13,31 @@ export const tripClosureService = {
    * dan mencatatnya sebagai arsip trip dengan warning.
    */
   async closeTrip(options: CloseTripOptions): Promise<ClosureResult> {
+    assertTripEditable(options.tripId);
+    let result: ClosureResult | undefined;
+    await getNativeDatabase().withTransactionAsync(async () => {
     const tripItems = await packingRepository.getByTripId(options.tripId);
-    
-    // Barang yang belum ditandai 'returned'
-    const unreturnedItems = tripItems.filter((item) => item.state !== 'returned');
+    requireFinalItemStatuses(tripItems);
+    const unreturnedItems = tripItems.filter((item) => item.state === 'missing');
     const hasMissingItems = unreturnedItems.length > 0;
 
-    // Jika ada barang belum kembali, tandai statusnya sebagai 'missing' di trip items
-    if (hasMissingItems) {
-      for (const item of unreturnedItems) {
-        if (item.state !== 'missing') {
-          await packingRepository.updateItemState(item.id, 'missing');
-        }
-      }
-    }
-
+    const closedAt = new Date().toISOString();
+    await tripRepository.update(options.tripId, { hasMissingItems: hasMissingItems ? 1 : 0 });
+    await archiveRepository.capture(options.tripId, closedAt);
     // Perbarui status trip ke 'completed' dan simpan flag missing items
     await tripRepository.updateStatus(options.tripId, 'completed', {
       isArchived: 1,
       hasMissingItems: hasMissingItems ? 1 : 0,
     });
 
-    return {
+    result = {
       success: true,
       hasMissingItems,
       missingItemsCount: unreturnedItems.length,
-      closedAt: new Date().toISOString(),
+      closedAt,
     };
+    });
+    if (!result) throw new Error('Trip closure did not complete.');
+    return result;
   },
 };

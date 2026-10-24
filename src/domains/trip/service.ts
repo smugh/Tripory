@@ -41,7 +41,7 @@ export const tripService = {
   },
 
   async getActiveOrUpcomingTrip(): Promise<TripEntity | null> {
-    const all = await tripRepository.getAll();
+    const all = await tripRepository.getForPlanning();
     const active = all.find((t) => t.status === 'ongoing');
     if (active) {
       return {

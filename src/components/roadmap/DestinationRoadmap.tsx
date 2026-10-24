@@ -8,9 +8,11 @@ import { Badge } from '../ui/Badge';
 import { DestinationRecord } from '@/db/schema/destinations';
 import { useUIStore } from '@/stores/ui-store';
 import { useI18n } from '@/core/i18n';
+import { getDestinationDate, formatDestinationDate } from '@/core/utils/destination-schedule';
 
 export interface DestinationRoadmapProps {
   destinations: DestinationRecord[];
+  tripStartDate?: string;
   activeStopIndex?: number;
   onToggleVisited?: (dest: DestinationRecord, index: number) => void;
   onAddStopPress?: () => void;
@@ -22,6 +24,7 @@ export interface DestinationRoadmapProps {
 
 export const DestinationRoadmap: React.FC<DestinationRoadmapProps> = ({
   destinations,
+  tripStartDate,
   activeStopIndex = 0,
   onToggleVisited,
   onAddStopPress,
@@ -165,15 +168,15 @@ export const DestinationRoadmap: React.FC<DestinationRoadmapProps> = ({
                   <View style={styles.metaRow}>
                     <View style={styles.dayBadge}>
                       <Typography variant="caption" color={colors.brand.navy} style={styles.dayBadgeText}>
-                        {format(t.trip.dayPrefix, { day: dest.dayNumber || idx + 1 })}
+                        {`#${idx + 1}`}
                       </Typography>
                     </View>
 
-                    {dest.plannedTime ? (
+                    {getDestinationDate(dest, tripStartDate) || dest.plannedTime ? (
                       <View style={styles.timeWrap}>
                         <Ionicons name="time-outline" size={12} color={colors.text.muted} />
                         <Typography variant="caption" color={colors.text.muted} style={styles.timeText}>
-                          {dest.plannedTime}
+                          {[formatDestinationDate(getDestinationDate(dest, tripStartDate), language), dest.plannedTime].filter(Boolean).join(' · ')}
                         </Typography>
                       </View>
                     ) : null}
@@ -188,6 +191,7 @@ export const DestinationRoadmap: React.FC<DestinationRoadmapProps> = ({
                   </View>
 
                   {/* Destination Title & Activity */}
+                  <View style={styles.titleRow}>
                   <Typography
                     variant="h3"
                     color={isVisited ? colors.text.muted : colors.brand.navy}
@@ -195,6 +199,8 @@ export const DestinationRoadmap: React.FC<DestinationRoadmapProps> = ({
                   >
                     {dest.name}
                   </Typography>
+                  <Ionicons name="chevron-forward" size={15} color={colors.text.muted} />
+                  </View>
 
                   {dest.activity ? (
                     <View style={styles.activityRow}>
@@ -241,12 +247,6 @@ export const DestinationRoadmap: React.FC<DestinationRoadmapProps> = ({
                       </Pressable>
                     ) : <View />}
 
-                    <View style={styles.detailLink}>
-                      <Typography variant="caption" color={colors.brand.blue} style={{ fontWeight: '700' }}>
-                        {language === 'en' ? 'Details →' : 'Detail →'}
-                      </Typography>
-                    </View>
-                  </View>
                   {(onEditDestination || onDeleteDestination || onMoveDestination) && (
                     <View style={styles.manageActions}>
                       {onMoveDestination && (
@@ -293,6 +293,7 @@ export const DestinationRoadmap: React.FC<DestinationRoadmapProps> = ({
                       )}
                     </View>
                   )}
+                  </View>
                 </Pressable>
               </View>
             </View>
@@ -368,13 +369,13 @@ const styles = StyleSheet.create({
   },
   cardColumn: {
     flex: 1,
-    paddingLeft: spacing[3],
-    paddingBottom: spacing[4],
+    paddingLeft: spacing[2],
+    paddingBottom: spacing[2],
   },
   destinationCard: {
     backgroundColor: colors.surface.card,
     borderRadius: radius.lg,
-    padding: spacing[3],
+    padding: 10,
     borderWidth: 1,
     borderColor: colors.border.default,
     shadowColor: '#000',
@@ -393,9 +394,11 @@ const styles = StyleSheet.create({
   },
   metaRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: spacing[2],
+    marginBottom: 6,
   },
   dayBadge: {
     backgroundColor: colors.surface.muted,
@@ -417,7 +420,14 @@ const styles = StyleSheet.create({
     fontSize: 11,
   },
   destTitle: {
-    marginBottom: 4,
+    flex: 1,
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   strikeTitle: {
     textDecorationLine: 'line-through',
@@ -428,12 +438,14 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   activityText: {
-    marginLeft: 6,
+    marginLeft: 4,
     flex: 1,
+    fontSize: 11,
+    lineHeight: 16,
   },
   cardActions: {
-    marginTop: spacing[3],
-    paddingTop: spacing[2],
+    marginTop: 6,
+    paddingTop: 6,
     borderTopWidth: 1,
     borderTopColor: colors.border.muted,
     flexDirection: 'row',
@@ -444,15 +456,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
-    gap: 6,
-    marginTop: spacing[2],
-    paddingTop: spacing[2],
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border.muted,
+    gap: 2,
   },
   manageAction: {
-    width: 34,
-    height: 34,
+    width: 32,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radius.md,
@@ -479,7 +487,7 @@ const styles = StyleSheet.create({
   actionPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
+    paddingHorizontal: 7,
     paddingVertical: 4,
     borderRadius: radius.full,
     borderWidth: 1,

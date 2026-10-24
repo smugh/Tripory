@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -20,11 +20,15 @@ export const DestinationJourneyMap: React.FC<DestinationJourneyMapProps> = ({
   onStopPress,
   onAddStopPress,
 }) => {
+  const [mapWidth, setMapWidth] = useState(280);
   const router = useRouter();
   const { t, format } = useI18n();
 
   const total = destinations.length;
   const visitedCount = visitedIds.length;
+  const stopWidth = Math.max(96, mapWidth / Math.min(Math.max(total, 1), 3));
+  const routeWidth = Math.max(mapWidth, total * stopWidth);
+  const markerY = (index: number) => index % 2 === 0 ? 38 : 100;
   const progressPercent = total > 0 ? Math.round((visitedCount / total) * 100) : 0;
 
   // Identify the currently active stop (first unvisited stop)
@@ -73,102 +77,80 @@ export const DestinationJourneyMap: React.FC<DestinationJourneyMapProps> = ({
           </Typography>
         </Pressable>
       ) : (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.trailScrollContent}
-        >
-          {destinations.map((dest, idx) => {
-            const isVisited = visitedIds.includes(dest.id);
-            const isCurrent = idx === currentStopIndex;
-            const isLast = idx === total - 1;
-
-            return (
-              <View key={dest.id} style={styles.nodeItem}>
-                {/* Top Label: Day / Time */}
-                <View style={styles.topMetaWrap}>
-                  <Typography variant="caption" color="#94A3B8" style={styles.dayText}>
-                    {dest.dayNumber ? `D${dest.dayNumber}` : `#${idx + 1}`}
-                  </Typography>
-                </View>
-
-                {/* Node Row with connecting lines */}
-                <View style={styles.nodeRow}>
-                  {/* Left segment connector */}
-                  {idx > 0 ? (
-                    <View
-                      style={[
-                        styles.connectorLine,
-                        styles.connectorLeft,
-                        isVisited
-                          ? styles.connectorVisited
-                          : styles.connectorPending,
-                      ]}
-                    />
-                  ) : (
-                    <View style={styles.connectorSpacer} />
-                  )}
-
-                  {/* Marker Pin */}
-                  <Pressable
-                    style={({ pressed }) => [
-                      styles.markerCircle,
-                      isVisited && styles.markerVisited,
-                      isCurrent && styles.markerCurrent,
-                      !isVisited && !isCurrent && styles.markerPending,
-                      pressed && { opacity: 0.8 },
-                    ]}
-                    onPress={() => handlePressStop(dest)}
-                  >
-                    {isVisited ? (
-                      <Ionicons name="checkmark" size={14} color="#FFFFFF" />
-                    ) : isCurrent ? (
-                      <Ionicons name="location-sharp" size={15} color="#FF6B57" />
-                    ) : (
-                      <Typography variant="caption" color="#94A3B8" style={styles.stopNumText}>
-                        {idx + 1}
-                      </Typography>
-                    )}
-                  </Pressable>
-
-                  {/* Right segment connector */}
-                  {!isLast ? (
-                    <View
-                      style={[
-                        styles.connectorLine,
-                        styles.connectorRight,
-                        visitedIds.includes(destinations[idx + 1]?.id)
-                          ? styles.connectorVisited
-                          : styles.connectorPending,
-                      ]}
-                    />
-                  ) : (
-                    <View style={styles.connectorSpacer} />
-                  )}
-                </View>
-
-                {/* Bottom Label: Destination Name */}
-                <Pressable
-                  onPress={() => handlePressStop(dest)}
-                  style={styles.nameWrap}
-                >
-                  <Typography
-                    variant="caption"
-                    color={isVisited ? '#94A3B8' : isCurrent ? '#FFFFFF' : '#CBD5E1'}
-                    numberOfLines={1}
-                    style={[
-                      styles.destNameText,
-                      isCurrent && styles.destNameCurrent,
-                      isVisited && styles.destNameVisited,
-                    ]}
-                  >
-                    {dest.name}
-                  </Typography>
-                </Pressable>
+        <View onLayout={(event) => setMapWidth(event.nativeEvent.layout.width)}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={{ width: routeWidth, height: 166 }}>
+              {/* A smooth winding road, drawn with native views to keep the map lightweight. */}
+              <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+                {destinations.slice(0, -1).map((destination, index) => {
+                  const fromY = markerY(index);
+                  const toY = markerY(index + 1);
+                  const completed = visitedIds.includes(destination.id) && visitedIds.includes(destinations[index + 1].id);
+                  return Array.from({ length: 24 }, (_, segment) => {
+                    const t1 = segment / 24;
+                    const t2 = (segment + 1) / 24;
+                    const x1 = stopWidth * (index + 0.5 + t1);
+                    const x2 = stopWidth * (index + 0.5 + t2);
+                    const y1 = fromY + (toY - fromY) * (1 - Math.cos(Math.PI * t1)) / 2;
+                    const y2 = fromY + (toY - fromY) * (1 - Math.cos(Math.PI * t2)) / 2;
+                    const length = Math.hypot(x2 - x1, y2 - y1) + 1;
+                    const angle = `${Math.atan2(y2 - y1, x2 - x1)}rad`;
+                    return (
+                      <View key={`${destination.id}-${segment}`} style={{
+                        position: 'absolute', left: (x1 + x2 - length) / 2,
+                        top: (y1 + y2) / 2 - 4, width: length, height: 8,
+                        borderRadius: 4, backgroundColor: completed ? '#22C55E' : '#516887',
+                        transform: [{ rotate: angle }],
+                      }}>
+                        {segment % 4 < 2 && <View style={{
+                          position: 'absolute', top: 3, left: 0, right: 0, height: 2,
+                          backgroundColor: completed ? '#BBF7D0' : '#A9BAD0',
+                        }} />}
+                      </View>
+                    );
+                  });
+                })}
               </View>
-            );
-          })}
-        </ScrollView>
+              {destinations.map((dest, idx) => {
+                const isVisited = visitedIds.includes(dest.id);
+                const isCurrent = idx === currentStopIndex;
+                return (
+                  <View key={dest.id} style={{
+                    position: 'absolute', left: idx * stopWidth, top: markerY(idx) - 34,
+                    width: stopWidth, alignItems: 'center',
+                  }}>
+                    <Typography variant="caption" color="#A9BAD0" style={styles.dayText}>
+                      {`#${idx + 1}`}
+                    </Typography>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={dest.name}
+                      style={({ pressed }) => [
+                        styles.markerCircle, { marginTop: 4 },
+                        isVisited && styles.markerVisited,
+                        isCurrent && styles.markerCurrent,
+                        !isVisited && !isCurrent && styles.markerPending,
+                        pressed && { opacity: 0.8 },
+                      ]}
+                      onPress={() => handlePressStop(dest)}
+                    >
+                      {isVisited ? <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+                        : isCurrent ? <Ionicons name="location-sharp" size={15} color="#FF6B57" />
+                        : <Typography variant="caption" color="#CBD5E1" style={styles.stopNumText}>{idx + 1}</Typography>}
+                    </Pressable>
+                    <Pressable onPress={() => handlePressStop(dest)} style={[styles.nameWrap, { maxWidth: stopWidth - 8 }]}>
+                      <Typography variant="caption" numberOfLines={2}
+                        color={isCurrent ? '#FFFFFF' : '#CBD5E1'}
+                        style={[styles.destNameText, isCurrent && styles.destNameCurrent]}>
+                        {dest.name}
+                      </Typography>
+                    </Pressable>
+                  </View>
+                );
+              })}
+            </View>
+          </ScrollView>
+        </View>
       )}
     </View>
   );

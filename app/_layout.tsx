@@ -79,7 +79,7 @@ export default function RootLayout() {
       <StatusBar style={isDarkMode ? 'light' : 'dark'} />
 
       {/* Main Navigation Stack */}
-      <Stack
+      {isDatabaseReady && <Stack
         screenOptions={{
           headerStyle: {
             backgroundColor: themeColors.surface.card,
@@ -178,7 +178,7 @@ export default function RootLayout() {
             headerBackTitle: t.trip.back,
           }}
         />
-      </Stack>
+      </Stack>}
 
       {/* Branded Splash Screen Overlay with Primary Logo Centered */}
       {isSplashVisible && (
@@ -224,7 +224,7 @@ export default function RootLayout() {
 
           <View style={styles.splashFooter}>
             <Typography variant="caption" color={themeColors.text.muted}>
-              Tripory v1.0.0 • Offline-First Travel Companion
+              Tripory v1.0.2 • Offline-First Travel Companion
             </Typography>
           </View>
         </Animated.View>

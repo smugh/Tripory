@@ -13,6 +13,7 @@ export const destinations = sqliteTable('destinations', {
   orderIndex: integer('order_index').notNull().default(0),
   isVisited: integer('is_visited', { mode: 'boolean' }).notNull().default(false),
   plannedTime: text('planned_time'), // contoh: '08:00', '14:30'
+  plannedDate: text('planned_date'), // YYYY-MM-DD, independent of the stop order
   activity: text('activity'),
   locationLabel: text('location_label'),
   latitude: real('latitude'),

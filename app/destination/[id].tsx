@@ -10,7 +10,7 @@ import {
   Modal,
   ActivityIndicator,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, useFocusEffect, Redirect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 
@@ -26,6 +26,8 @@ import { TripItemRecord } from '@/db/schema/trip-items';
 import { TripRecord } from '@/db/schema/trips';
 import { generateId } from '@/core/utils/id';
 import { mediaService } from '@/services/media';
+import { DestinationScheduleEditor } from '@/components/roadmap/DestinationScheduleEditor';
+import { getDestinationDate, formatDestinationDate } from '@/core/utils/destination-schedule';
 
 interface DestinationTodo {
   id: string;
@@ -58,6 +60,7 @@ export default function DestinationDetailScreen() {
   const [shiftModalItem, setShiftModalItem] = useState<TripItemRecord | null>(null);
   const [activeItemMenu, setActiveItemMenu] = useState<TripItemRecord | null>(null);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [editingSchedule, setEditingSchedule] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!id) return;
@@ -98,9 +101,9 @@ export default function DestinationDetailScreen() {
     }
   }, [id, router, t]);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     loadData();
-  }, [loadData]);
+  }, [loadData]));
 
   // Handle Photo Picker
   const handlePickImage = async (useCamera: boolean) => {
@@ -237,7 +240,8 @@ export default function DestinationDetailScreen() {
   // Toggle Item State
   const handleToggleItemState = async (item: TripItemRecord, nextState: TripItemRecord['state']) => {
     try {
-      await packingRepository.updateItemState(item.id, nextState);
+      if (nextState === 'used') await packingRepository.recordActualUsage(destination!.id, item.id);
+      else await packingRepository.updateItemState(item.id, nextState, destination?.id);
       setTripItems((prev) =>
         prev.map((it) => (it.id === item.id ? { ...it, state: nextState } : it))
       );
@@ -265,6 +269,8 @@ export default function DestinationDetailScreen() {
       </ScreenContainer>
     );
   }
+
+  if (trip?.status === 'completed') return <Redirect href={{ pathname: '/trip/[id]', params: { id: trip.id } }} />;
 
   return (
     <ScreenContainer>
@@ -299,7 +305,7 @@ export default function DestinationDetailScreen() {
                 {t.destDetail.addPhotoBtn}
               </Typography>
               <Typography variant="caption" color={colors.text.muted}>
-                {trip?.name} • Day {destination.dayNumber}
+                {trip?.name} • #{allDestinations.findIndex((entry) => entry.id === destination.id) + 1}
               </Typography>
             </Pressable>
           )}
@@ -310,17 +316,17 @@ export default function DestinationDetailScreen() {
           <View style={styles.badgeRow}>
             <View style={styles.dayChip}>
               <Typography variant="caption" color={colors.brand.coral} style={styles.dayChipText}>
-                DAY {destination.dayNumber}
+                #{allDestinations.findIndex((entry) => entry.id === destination.id) + 1}
               </Typography>
             </View>
-            {destination.plannedTime && (
-              <View style={[styles.timeChip, { backgroundColor: colors.surface.muted }]}>
-                <Ionicons name="time-outline" size={13} color={colors.text.secondary} />
+              <Pressable accessibilityRole="button" accessibilityLabel={language === 'en' ? 'Edit destination schedule' : 'Edit jadwal destinasi'} onPress={() => setEditingSchedule(true)} style={[styles.timeChip, { backgroundColor: colors.surface.muted }]}>
+                <Ionicons name="calendar-outline" size={13} color={colors.brand.blue} />
                 <Typography variant="caption" color={colors.text.secondary} style={{ marginLeft: 4 }}>
-                  {destination.plannedTime}
+                  {formatDestinationDate(getDestinationDate(destination, trip?.startDate), language, true)}
+                  {destination.plannedTime ? ` · ${destination.plannedTime}` : ''}
                 </Typography>
-              </View>
-            )}
+                <Ionicons name="pencil-outline" size={13} color={colors.brand.blue} style={{ marginLeft: 6 }} />
+              </Pressable>
           </View>
 
           <Typography variant="h2" color={colors.brand.navy} style={styles.destTitle}>
@@ -345,6 +351,11 @@ export default function DestinationDetailScreen() {
             </View>
           )}
         </Card>
+
+        <DestinationScheduleEditor visible={editingSchedule} date={getDestinationDate(destination, trip?.startDate)} time={destination.plannedTime || '09:00'} language={language} onClose={() => setEditingSchedule(false)} onSave={async (plannedDate, plannedTime) => {
+          await destinationRepository.update(destination.id, { plannedDate, plannedTime });
+          setDestination((previous) => previous ? { ...previous, plannedDate, plannedTime } : previous);
+        }} />
 
         {/* Section 1: Assigned Items / Inventory for this Destination */}
         <Card style={styles.sectionCard}>
@@ -606,7 +617,7 @@ export default function DestinationDetailScreen() {
                 </Pressable>
 
                 {/* Option: Move to other destinations */}
-                {allDestinations.map((d) => {
+                {allDestinations.map((d, index) => {
                   const isCurrent = d.id === id;
                   return (
                     <Pressable
@@ -623,7 +634,7 @@ export default function DestinationDetailScreen() {
                       <Ionicons name="location-outline" size={18} color={colors.brand.blue} />
                       <View style={{ marginLeft: 8, flex: 1 }}>
                         <Typography variant="label" color={colors.text.primary}>
-                          {t.destDetail.moveToStopPrefix}Day {d.dayNumber} - {d.name}
+                          {t.destDetail.moveToStopPrefix}#{index + 1} - {d.name}
                         </Typography>
                         {isCurrent && (
                           <Typography variant="caption" color={colors.brand.coral}>
@@ -961,6 +972,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   badgeRow: {
+    flexWrap: 'wrap',
+    rowGap: 8,
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 8,

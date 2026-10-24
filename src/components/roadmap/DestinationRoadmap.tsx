@@ -14,6 +14,9 @@ export interface DestinationRoadmapProps {
   activeStopIndex?: number;
   onToggleVisited?: (dest: DestinationRecord, index: number) => void;
   onAddStopPress?: () => void;
+  onEditDestination?: (destination: DestinationRecord) => void;
+  onDeleteDestination?: (destination: DestinationRecord) => void;
+  onMoveDestination?: (destination: DestinationRecord, direction: -1 | 1) => void;
   visitedIds?: string[];
 }
 
@@ -22,6 +25,9 @@ export const DestinationRoadmap: React.FC<DestinationRoadmapProps> = ({
   activeStopIndex = 0,
   onToggleVisited,
   onAddStopPress,
+  onEditDestination,
+  onDeleteDestination,
+  onMoveDestination,
   visitedIds = [],
 }) => {
   const router = useRouter();
@@ -241,6 +247,52 @@ export const DestinationRoadmap: React.FC<DestinationRoadmapProps> = ({
                       </Typography>
                     </View>
                   </View>
+                  {(onEditDestination || onDeleteDestination || onMoveDestination) && (
+                    <View style={styles.manageActions}>
+                      {onMoveDestination && (
+                        <>
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={language === 'en' ? 'Move destination earlier' : 'Pindahkan destinasi lebih awal'}
+                            disabled={idx === 0}
+                            onPress={(e) => { e.stopPropagation(); onMoveDestination(dest, -1); }}
+                            style={[styles.manageAction, idx === 0 && styles.disabledManageAction]}
+                          >
+                            <Ionicons name="arrow-up" size={16} color={idx === 0 ? colors.text.muted : colors.brand.blue} />
+                          </Pressable>
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={language === 'en' ? 'Move destination later' : 'Pindahkan destinasi lebih akhir'}
+                            disabled={idx === destinations.length - 1}
+                            onPress={(e) => { e.stopPropagation(); onMoveDestination(dest, 1); }}
+                            style={[styles.manageAction, idx === destinations.length - 1 && styles.disabledManageAction]}
+                          >
+                            <Ionicons name="arrow-down" size={16} color={idx === destinations.length - 1 ? colors.text.muted : colors.brand.blue} />
+                          </Pressable>
+                        </>
+                      )}
+                      {onEditDestination && (
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={language === 'en' ? 'Edit destination' : 'Edit destinasi'}
+                          onPress={(e) => { e.stopPropagation(); onEditDestination(dest); }}
+                          style={styles.manageAction}
+                        >
+                          <Ionicons name="pencil" size={15} color={colors.brand.blue} />
+                        </Pressable>
+                      )}
+                      {onDeleteDestination && (
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={language === 'en' ? 'Delete destination' : 'Hapus destinasi'}
+                          onPress={(e) => { e.stopPropagation(); onDeleteDestination(dest); }}
+                          style={styles.manageAction}
+                        >
+                          <Ionicons name="trash-outline" size={15} color={colors.status.error} />
+                        </Pressable>
+                      )}
+                    </View>
+                  )}
                 </Pressable>
               </View>
             </View>
@@ -387,6 +439,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  manageActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 6,
+    marginTop: spacing[2],
+    paddingTop: spacing[2],
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border.muted,
+  },
+  manageAction: {
+    width: 34,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.md,
+    backgroundColor: colors.surface.page,
+  },
+  disabledManageAction: {
+    opacity: 0.4,
   },
   cardThumbWrap: {
     height: 110,

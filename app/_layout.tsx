@@ -95,6 +95,13 @@ export default function RootLayout() {
       >
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen
+          name="memories/[id]"
+          options={{
+            title: 'Memories',
+            headerBackTitle: t.trip.back,
+          }}
+        />
+        <Stack.Screen
           name="trip/[id]"
           options={{
             title: t.trip.details,
@@ -189,7 +196,7 @@ export default function RootLayout() {
           <View style={styles.splashCenter}>
             <Animated.View style={{ transform: [{ scale: logoScaleAnim }] }}>
               <Image
-                source={require('@/../assets/images/logo-primary.png')}
+                source={require('@/../assets/images/logo-horizontal.png')}
                 style={styles.splashLogo}
                 resizeMode="contain"
               />
@@ -237,13 +244,15 @@ const styles = StyleSheet.create({
     zIndex: 9999,
   },
   splashCenter: {
+    width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing[6],
   },
   splashLogo: {
-    width: 220,
-    height: 190,
+    width: 300,
+    maxWidth: '90%',
+    height: 110,
   },
   splashTagline: {
     marginTop: spacing[3],

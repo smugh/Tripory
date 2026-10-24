@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Pressable, Image, ActivityIndicator, Modal } from 'react-native';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { View, StyleSheet, ScrollView, Alert, Pressable, Image, ActivityIndicator, Modal, TextInput, Animated, Easing } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -17,10 +17,13 @@ import { locationService } from '@/services/adapters';
 import { TripRecord } from '@/db/schema/trips';
 import { DestinationRecord } from '@/db/schema/destinations';
 import { TripItemRecord } from '@/db/schema/trip-items';
+import { ItemRecord } from '@/db/schema/items';
+import { itemRepository } from '@/db/repositories/item.repository';
 import { MomentRecord } from '@/db/schema/moments';
 import { formatDateRange, formatTripDurationLabel } from '@/core/utils';
 import { useUIStore } from '@/stores/ui-store';
 import { useI18n } from '@/core/i18n';
+import { PackingIllustration } from '@/components/packing/PackingIllustration';
 
 type WorkspaceTab = 'roadmap' | 'packing' | 'moments';
 type PackingFilter = 'all' | 'unpacked' | 'packed';
@@ -41,7 +44,8 @@ export default function TripDetailScreen() {
   // Active workspace segment tab
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('roadmap');
   const [packingFilter, setPackingFilter] = useState<PackingFilter>('all');
-  const [packSubTab, setPackSubTab] = useState<'starter' | 'destinations'>('starter');
+  const [packingTransitionItemId, setPackingTransitionItemId] = useState<string | null>(null);
+  const packingTransition = useRef(new Animated.Value(0)).current;
   const [itemToShift, setItemToShift] = useState<TripItemRecord | null>(null);
   const [activeItemMenu, setActiveItemMenu] = useState<TripItemRecord | null>(null);
   const [targetDestinationForNewItem, setTargetDestinationForNewItem] = useState<string | null>(null);
@@ -55,6 +59,10 @@ export default function TripDetailScreen() {
   const [newDestTime, setNewDestTime] = useState('09:00');
   const [newDestImageUri, setNewDestImageUri] = useState<string | null>(null);
   const [isAddingDest, setIsAddingDest] = useState(false);
+  const [editingDestination, setEditingDestination] = useState<DestinationRecord | null>(null);
+  const [inventoryItems, setInventoryItems] = useState<ItemRecord[]>([]);
+  const [isInventoryPickerOpen, setIsInventoryPickerOpen] = useState(false);
+  const [inventorySearch, setInventorySearch] = useState('');
 
   const [newItemName, setNewItemName] = useState('');
   const [newMomentCaption, setNewMomentCaption] = useState('');
@@ -63,7 +71,6 @@ export default function TripDetailScreen() {
   const [momentCoords, setMomentCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [isLocating, setIsLocating] = useState<boolean>(false);
   const [isSavingMoment, setIsSavingMoment] = useState<boolean>(false);
-  const [isClosingTrip, setIsClosingTrip] = useState(false);
 
   const loadTripData = useCallback(async () => {
     if (!id) return;
@@ -74,6 +81,7 @@ export default function TripDetailScreen() {
         setTrip(tripData);
         const dests = await destinationRepository.getByTripId(id);
         setDestinations(dests);
+        setVisitedStopIds(dests.filter((destination) => destination.isVisited).map((destination) => destination.id));
         const tripItems = await packingRepository.getByTripId(id);
         setItems(tripItems);
         const m = await momentRepository.getByTripId(id);
@@ -101,15 +109,19 @@ export default function TripDetailScreen() {
     }
   };
 
-  const handleToggleVisited = (dest: DestinationRecord) => {
+  const handleToggleVisited = async (dest: DestinationRecord) => {
     if (visitedStopIds.includes(dest.id)) {
-      // If already visited, tapping untoggles it
-      setVisitedStopIds((prev) => prev.filter((i) => i !== dest.id));
+      try {
+        await destinationRepository.update(dest.id, { isVisited: false });
+        setVisitedStopIds((prev) => prev.filter((i) => i !== dest.id));
+      } catch {
+        Alert.alert(language === 'en' ? 'Error' : 'Gagal', 'Could not update destination status.');
+      }
     } else {
       // Opening dialog to check items used at this destination
       setVisitingModalDest(dest);
-      const mapped = items.filter((i) => i.plannedDestinationId === dest.id && i.state !== 'used');
-      setSelectedUsedItemIds(mapped.map((i) => i.id));
+      const mapped = items.filter((i) => i.plannedDestinationId === dest.id);
+      setSelectedUsedItemIds(mapped.filter((i) => i.state === 'used').map((i) => i.id));
     }
   };
 
@@ -119,27 +131,134 @@ export default function TripDetailScreen() {
       return;
     }
     try {
-      await destinationRepository.create({
+      let savedDestinationImageUri = newDestImageUri;
+      if (savedDestinationImageUri && !mediaService.isManagedPhotoUri(savedDestinationImageUri)) {
+        const savedPhoto = await mediaService.savePhoto({ sourceUri: savedDestinationImageUri });
+        savedDestinationImageUri = savedPhoto.fullUri;
+      }
+      const destinationData = {
         tripId: id,
         name: newDestName.trim(),
         activity: newDestActivity.trim() || null,
-        dayNumber: destinations.length + 1,
-        orderIndex: destinations.length,
+        dayNumber: editingDestination?.dayNumber ?? destinations.length + 1,
+        orderIndex: editingDestination?.orderIndex ?? destinations.length,
         plannedTime: newDestTime.trim() || '09:00',
-        locationLabel: null,
-        latitude: null,
-        longitude: null,
-        imageUri: newDestImageUri,
-        notes: null,
-        todos: null,
-      });
+        locationLabel: editingDestination?.locationLabel ?? null,
+        latitude: editingDestination?.latitude ?? null,
+        longitude: editingDestination?.longitude ?? null,
+        imageUri: savedDestinationImageUri,
+        notes: editingDestination?.notes ?? null,
+        todos: editingDestination?.todos ?? null,
+      };
+      if (editingDestination) {
+        await destinationRepository.update(editingDestination.id, destinationData);
+        if (editingDestination.imageUri && editingDestination.imageUri !== savedDestinationImageUri) {
+          await mediaService.deletePhotoByUri(editingDestination.imageUri);
+        }
+      } else {
+        await destinationRepository.create(destinationData);
+      }
       setNewDestName('');
       setNewDestActivity('');
+      setNewDestTime('09:00');
       setNewDestImageUri(null);
+      setEditingDestination(null);
       setIsAddingDest(false);
       loadTripData();
     } catch {
       Alert.alert(language === 'en' ? 'Error' : 'Gagal', t.trip.alertDestAddError);
+    }
+  };
+
+  const handleEditDestination = (destination: DestinationRecord) => {
+    setEditingDestination(destination);
+    setNewDestName(destination.name);
+    setNewDestActivity(destination.activity || '');
+    setNewDestTime(destination.plannedTime || '09:00');
+    setNewDestImageUri(destination.imageUri || null);
+    setIsAddingDest(true);
+  };
+
+  const handleDeleteDestination = (destination: DestinationRecord) => {
+    Alert.alert(
+      language === 'en' ? 'Delete destination?' : 'Hapus destinasi?',
+      language === 'en'
+        ? `Items mapped to ${destination.name} will return to the Starter Pack.`
+        : `Barang yang dipetakan ke ${destination.name} akan dipindahkan ke Starter Pack.`,
+      [
+        { text: t.trip.cancel, style: 'cancel' },
+        { text: t.trip.delete, style: 'destructive', onPress: async () => {
+          try {
+            await destinationRepository.delete(destination.id);
+            if (destination.imageUri) await mediaService.deletePhotoByUri(destination.imageUri);
+            setVisitedStopIds((prev) => prev.filter((stopId) => stopId !== destination.id));
+            const remaining = await destinationRepository.getByTripId(id!);
+            await destinationRepository.reorderForTrip(id!, remaining.map((entry) => entry.id));
+            await loadTripData();
+          } catch {
+            Alert.alert(language === 'en' ? 'Error' : 'Gagal', 'Could not delete destination.');
+          }
+        } },
+      ]
+    );
+  };
+
+  const handleMoveDestination = async (destination: DestinationRecord, direction: -1 | 1) => {
+    if (!id) return;
+    const currentIndex = destinations.findIndex((entry) => entry.id === destination.id);
+    const targetIndex = currentIndex + direction;
+    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= destinations.length) return;
+    const reordered = [...destinations];
+    [reordered[currentIndex], reordered[targetIndex]] = [reordered[targetIndex], reordered[currentIndex]];
+    setDestinations(reordered.map((entry, index) => ({ ...entry, orderIndex: index })));
+    try {
+      await destinationRepository.reorderForTrip(id, reordered.map((entry) => entry.id));
+      await loadTripData();
+    } catch {
+      Alert.alert(language === 'en' ? 'Error' : 'Gagal', 'Could not reorder destinations.');
+      loadTripData();
+    }
+  };
+
+  const openInventoryPicker = async (destinationId: string | null) => {
+    setTargetDestinationForNewItem(destinationId);
+    setInventorySearch('');
+    try {
+      setInventoryItems(await itemRepository.getAll());
+      setIsInventoryPickerOpen(true);
+    } catch {
+      Alert.alert(language === 'en' ? 'Error' : 'Gagal', 'Could not load inventory.');
+    }
+  };
+
+  const handleAddInventoryItem = async (inventoryItem: ItemRecord) => {
+    if (!id) return;
+    const duplicate = items.some((entry) =>
+      entry.itemId === inventoryItem.id && entry.plannedDestinationId === targetDestinationForNewItem
+    );
+    if (duplicate) {
+      Alert.alert(
+        language === 'en' ? 'Already added' : 'Sudah ditambahkan',
+        language === 'en' ? 'This inventory item is already in this packing section.' : 'Barang inventaris ini sudah ada di bagian packing tersebut.'
+      );
+      return;
+    }
+    try {
+      await packingRepository.addTripItem({
+        tripId: id,
+        itemId: inventoryItem.id,
+        customName: inventoryItem.name,
+        category: inventoryItem.category,
+        plannedDestinationId: targetDestinationForNewItem,
+        state: 'planned',
+        priority: 'must_have',
+        quantity: inventoryItem.quantity,
+        notes: inventoryItem.notes,
+      });
+      setIsInventoryPickerOpen(false);
+      await loadTripData();
+    } catch {
+      Alert.alert(language === 'en' ? 'Error' : 'Gagal', 'Could not add item from inventory.');
     }
   };
 
@@ -151,7 +270,7 @@ export default function TripDetailScreen() {
         itemId: null,
         customName: newItemName.trim(),
         category: 'Gear & Activities',
-        plannedDestinationId: targetDestinationForNewItem,
+        plannedDestinationId: null,
         state: 'planned',
         priority: 'must_have',
         quantity: 1,
@@ -187,9 +306,28 @@ export default function TripDetailScreen() {
   const handleTogglePack = async (item: TripItemRecord) => {
     try {
       const nextState = item.state === 'planned' ? 'packed' : 'planned';
+      const leavesCurrentFilter =
+        (packingFilter === 'unpacked' && nextState === 'packed') ||
+        (packingFilter === 'packed' && nextState === 'planned');
+      if (leavesCurrentFilter) {
+        setPackingTransitionItemId(item.id);
+        packingTransition.setValue(0);
+        await new Promise<void>((resolve) => {
+          Animated.timing(packingTransition, {
+            toValue: 1,
+            duration: 260,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }).start(() => resolve());
+        });
+      }
       await packingRepository.updateItemState(item.id, nextState);
-      loadTripData();
+      await loadTripData();
+      setPackingTransitionItemId(null);
+      packingTransition.setValue(0);
     } catch {
+      setPackingTransitionItemId(null);
+      packingTransition.setValue(0);
       Alert.alert(language === 'en' ? 'Error' : 'Gagal', t.trip.alertItemUpdateError);
     }
   };
@@ -521,6 +659,9 @@ export default function TripDetailScreen() {
               destinations={destinations}
               visitedIds={visitedStopIds}
               onToggleVisited={handleToggleVisited}
+              onEditDestination={handleEditDestination}
+              onDeleteDestination={handleDeleteDestination}
+              onMoveDestination={handleMoveDestination}
               onAddStopPress={() => setIsAddingDest(true)}
             />
 
@@ -529,9 +670,11 @@ export default function TripDetailScreen() {
               <Card style={styles.addFormCard}>
                 <View style={styles.formHeader}>
                   <Typography variant="h3" color={colors.brand.navy}>
-                    {t.trip.addStopHeading}
+                    {editingDestination
+                      ? (language === 'en' ? 'Edit Destination' : 'Edit Destinasi')
+                      : t.trip.addStopHeading}
                   </Typography>
-                  <Pressable onPress={() => setIsAddingDest(false)}>
+                  <Pressable onPress={() => { setIsAddingDest(false); setEditingDestination(null); }}>
                     <Ionicons name="close-circle-outline" size={22} color={colors.text.muted} />
                   </Pressable>
                 </View>
@@ -541,7 +684,7 @@ export default function TripDetailScreen() {
                   {t.trip.quickPickLabel}
                 </Typography>
                 <View style={styles.quickChipsRow}>
-                  {quickDestSuggestions.map((sug) => (
+                  {!editingDestination && quickDestSuggestions.map((sug) => (
                     <Pressable
                       key={sug.name}
                       style={styles.sugChip}
@@ -617,10 +760,12 @@ export default function TripDetailScreen() {
                     label={t.trip.cancel}
                     variant="ghost"
                     size="sm"
-                    onPress={() => setIsAddingDest(false)}
+                    onPress={() => { setIsAddingDest(false); setEditingDestination(null); }}
                   />
                   <Button
-                    label={t.trip.saveStopBtn}
+                    label={editingDestination
+                      ? (language === 'en' ? 'Save Changes' : 'Simpan Perubahan')
+                      : t.trip.saveStopBtn}
                     variant="primary"
                     size="sm"
                     onPress={handleAddDestination}
@@ -642,52 +787,19 @@ export default function TripDetailScreen() {
         {/* TAB 2: PACKING & INVENTORY */}
         {activeTab === 'packing' ? (
           <View style={styles.tabContent}>
-            {/* 2 OPTIONS SUB-TABS: STARTER PACK VS DESTINATION PACK */}
-            <View style={styles.packSubTabContainer}>
-              <Pressable
-                style={[
-                  styles.packSubTabBtn,
-                  packSubTab === 'starter' && { backgroundColor: colors.brand.coral },
-                ]}
-                onPress={() => setPackSubTab('starter')}
-              >
-                <Ionicons
-                  name="briefcase"
-                  size={15}
-                  color={packSubTab === 'starter' ? '#FFFFFF' : colors.text.secondary}
-                />
-                <Typography
-                  variant="label"
-                  color={packSubTab === 'starter' ? '#FFFFFF' : colors.text.secondary}
-                  style={styles.packSubTabText}
-                >
-                  {t.packWorkspace.tabStarterPack} (
-                  {items.filter((i) => !i.plannedDestinationId).length})
-                </Typography>
-              </Pressable>
-
-              <Pressable
-                style={[
-                  styles.packSubTabBtn,
-                  packSubTab === 'destinations' && { backgroundColor: colors.brand.coral },
-                ]}
-                onPress={() => setPackSubTab('destinations')}
-              >
-                <Ionicons
-                  name="location"
-                  size={15}
-                  color={packSubTab === 'destinations' ? '#FFFFFF' : colors.text.secondary}
-                />
-                <Typography
-                  variant="label"
-                  color={packSubTab === 'destinations' ? '#FFFFFF' : colors.text.secondary}
-                  style={styles.packSubTabText}
-                >
-                  {t.packWorkspace.tabDestinationPack} (
-                  {items.filter((i) => !!i.plannedDestinationId).length})
-                </Typography>
-              </Pressable>
-            </View>
+            <PackingIllustration
+              mode={packingFilter === 'packed' ? 'packed' : 'preparing'}
+              title={packingFilter === 'packed'
+                ? (language === 'en' ? 'Packed and ready' : 'Sudah masuk tas')
+                : (language === 'en' ? 'Need packing' : 'Perlu disiapkan')}
+              caption={packingFilter === 'packed'
+                ? (language === 'en'
+                  ? 'Your checked items are tucked safely in the bag.'
+                  : 'Barang yang dicentang sudah tersimpan aman di dalam tas.')
+                : (language === 'en'
+                  ? 'Check items as you get them ready for the trip.'
+                  : 'Centang barang saat kamu mulai menyiapkannya untuk perjalanan.')}
+            />
 
             {/* Filter Chips */}
             <View style={styles.filterChipsRow}>
@@ -718,7 +830,6 @@ export default function TripDetailScreen() {
             </View>
 
             {/* SUB-VIEW 1: STARTER PACK */}
-            {packSubTab === 'starter' ? (
               <Card style={styles.itemsListCard}>
                 <View style={styles.subTabHeaderRow}>
                   <View>
@@ -749,7 +860,16 @@ export default function TripDetailScreen() {
                       const isPacked = item.state === 'packed';
                       const isUsed = item.state === 'used';
                       return (
-                        <View key={item.id} style={styles.checkItemRow}>
+                        <Animated.View
+                          key={item.id}
+                          style={[
+                            styles.checkItemRow,
+                            packingTransitionItemId === item.id && {
+                              opacity: packingTransition.interpolate({ inputRange: [0, 1], outputRange: [1, 0.35] }),
+                              transform: [{ translateX: packingTransition.interpolate({ inputRange: [0, 1], outputRange: [0, packingFilter === 'packed' ? -26 : 26] }) }],
+                            },
+                          ]}
+                        >
                           <Pressable
                             onPress={() => handleTogglePack(item)}
                             style={[styles.checkbox, isPacked && styles.checkboxActive]}
@@ -789,7 +909,7 @@ export default function TripDetailScreen() {
                           >
                             <Ionicons name="ellipsis-vertical" size={17} color={colors.text.primary} />
                           </Pressable>
-                        </View>
+                        </Animated.View>
                       );
                     })
                 )}
@@ -811,9 +931,17 @@ export default function TripDetailScreen() {
                     style={styles.saveItemBtn}
                   />
                 </View>
+                <Button
+                  label={language === 'en' ? '+ Add from Inventory' : '+ Tambah dari Inventaris'}
+                  variant="secondary"
+                  size="sm"
+                  onPress={() => openInventoryPicker(null)}
+                  style={{ marginTop: spacing[2] }}
+                />
               </Card>
-            ) : (
-              /* SUB-VIEW 2: DESTINATION PACK (Grouped by Stop) */
+              <Typography variant="h3" color={colors.brand.navy} style={{ marginTop: spacing[4], marginBottom: spacing[2] }}>
+                {t.packWorkspace.tabDestinationPack}
+              </Typography>
               <View style={styles.destPackList}>
                 {destinations.length === 0 ? (
                   <Card style={styles.emptyItemsBox}>
@@ -870,7 +998,16 @@ export default function TripDetailScreen() {
                               const isPacked = item.state === 'packed';
                               const isUsed = item.state === 'used';
                               return (
-                                <View key={item.id} style={styles.checkItemRow}>
+                                <Animated.View
+                                  key={item.id}
+                                  style={[
+                                    styles.checkItemRow,
+                                    packingTransitionItemId === item.id && {
+                                      opacity: packingTransition.interpolate({ inputRange: [0, 1], outputRange: [1, 0.35] }),
+                                      transform: [{ translateX: packingTransition.interpolate({ inputRange: [0, 1], outputRange: [0, packingFilter === 'packed' ? -26 : 26] }) }],
+                                    },
+                                  ]}
+                                >
                                   <Pressable
                                     onPress={() => handleTogglePack(item)}
                                     style={[styles.checkbox, isPacked && styles.checkboxActive]}
@@ -910,17 +1047,23 @@ export default function TripDetailScreen() {
                                   >
                                     <Ionicons name="ellipsis-vertical" size={17} color={colors.text.primary} />
                                   </Pressable>
-                                </View>
+                                </Animated.View>
                               );
                             })
                           )}
                         </View>
+                        <Button
+                          label={language === 'en' ? '+ Add from Inventory' : '+ Tambah dari Inventaris'}
+                          variant="secondary"
+                          size="sm"
+                          onPress={() => openInventoryPicker(dest.id)}
+                          style={{ marginTop: spacing[2] }}
+                        />
                       </Card>
                     );
                   })
                 )}
               </View>
-            )}
           </View>
         ) : null}
 
@@ -1102,60 +1245,66 @@ export default function TripDetailScreen() {
           </View>
         ) : null}
 
-        {/* Penutupan Perjalanan (End Trip & Save to Album) */}
-        {!isCompleted ? (
-          <Card style={[styles.closeCard, { borderColor: colors.brand.coral, borderWidth: 1.5 }]}>
-            <View style={styles.closeHeader}>
-              <View style={[styles.endTripIconCircle, { backgroundColor: '#FFF0EE' }]}>
-                <Ionicons name="trophy" size={22} color={colors.brand.coral} />
-              </View>
-              <View style={{ flex: 1, marginLeft: spacing[3] }}>
-                <Typography variant="h3" color={colors.brand.navy} style={styles.closeTitle}>
-                  {t.trip.closeSectionTitle}
-                </Typography>
-                {trip?.destination ? (
-                  <Typography variant="caption" color={colors.brand.coral} style={{ fontWeight: '600', marginTop: 2 }}>
-                    📍 {trip.destination}
-                  </Typography>
-                ) : null}
-              </View>
-            </View>
-            <Typography variant="body" color={colors.text.secondary} style={styles.closeDesc}>
-              {t.trip.closeSectionDesc}
-            </Typography>
-            <Button
-              label={t.trip.closeSectionBtn}
-              variant="primary"
-              size="lg"
-              isLoading={isClosingTrip}
-              onPress={handleCloseTrip}
-            />
-          </Card>
-        ) : (
-          <Card style={[styles.closeCard, { borderColor: colors.status.success, borderWidth: 1.5 }]}>
-            <View style={styles.closeHeader}>
-              <View style={[styles.endTripIconCircle, { backgroundColor: '#E8F5E9' }]}>
-                <Ionicons name="checkmark-done-circle" size={24} color={colors.status.success} />
-              </View>
-              <View style={{ flex: 1, marginLeft: spacing[3] }}>
-                <Typography variant="label" color={colors.brand.navy} style={{ fontWeight: '700' }}>
-                  {t.trip.tripAlreadyCompletedTitle}
-                </Typography>
-                <Typography variant="caption" color={colors.text.secondary} style={{ marginTop: 2 }}>
-                  {t.trip.tripAlreadyCompletedDesc}
-                </Typography>
-              </View>
-            </View>
-            <Button
-              label={t.trip.viewInAlbumBtn}
-              variant="secondary"
-              size="md"
-              onPress={() => router.replace('/(tabs)' as any)}
-              style={{ marginTop: spacing[3] }}
-            />
-          </Card>
+        {!isCompleted && (
+          <Button
+            label={language === 'en' ? 'End Trip' : 'Akhiri Perjalanan'}
+            variant="destructive"
+            size="lg"
+            onPress={handleCloseTrip}
+            style={styles.endTripButton}
+          />
         )}
       </ScrollView>
+
+      <Modal
+        transparent
+        animationType="slide"
+        visible={isInventoryPickerOpen}
+        onRequestClose={() => setIsInventoryPickerOpen(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.inventoryPickerCard, { backgroundColor: colors.surface.card }]}>
+            <View style={styles.modalHeader}>
+              <Typography variant="h3" color={colors.brand.navy}>
+                {language === 'en' ? 'Add from Inventory' : 'Tambah dari Inventaris'}
+              </Typography>
+              <Pressable onPress={() => setIsInventoryPickerOpen(false)}>
+                <Ionicons name="close-circle-outline" size={24} color={colors.text.muted} />
+              </Pressable>
+            </View>
+            <TextInput
+              value={inventorySearch}
+              onChangeText={setInventorySearch}
+              placeholder={language === 'en' ? 'Search inventory' : 'Cari barang inventaris'}
+              placeholderTextColor={colors.text.muted}
+              style={[styles.inventorySearch, { backgroundColor: colors.surface.page, color: colors.text.primary, borderColor: colors.border.default }]}
+              returnKeyType="search"
+            />
+            <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 380 }}>
+              {inventoryItems
+                .filter((entry) => entry.name.toLocaleLowerCase().includes(inventorySearch.trim().toLocaleLowerCase()))
+                .map((entry) => (
+                  <Pressable
+                    key={entry.id}
+                    onPress={() => handleAddInventoryItem(entry)}
+                    style={[styles.inventoryPickerRow, { borderBottomColor: colors.border.muted }]}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Typography variant="label" color={colors.text.primary}>{entry.name}</Typography>
+                      <Typography variant="caption" color={colors.text.muted}>{entry.category} · {language === 'en' ? 'Qty' : 'Jumlah'}: {entry.quantity}</Typography>
+                    </View>
+                    <Ionicons name="add-circle" size={23} color={colors.brand.coral} />
+                  </Pressable>
+                ))}
+              {inventoryItems.filter((entry) => entry.name.toLocaleLowerCase().includes(inventorySearch.trim().toLocaleLowerCase())).length === 0 && (
+                <Typography variant="body" color={colors.text.muted} style={{ paddingVertical: spacing[4], textAlign: 'center' }}>
+                  {language === 'en' ? 'No inventory items found.' : 'Barang tidak ditemukan di inventaris.'}
+                </Typography>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       {/* MODAL: SHIFT ITEM TO ANOTHER DESTINATION */}
       {itemToShift && (
@@ -1491,13 +1640,9 @@ export default function TripDetailScreen() {
 
               {/* Items List */}
               {(() => {
-                const targetItems = items.filter(
+                const displayItems = items.filter(
                   (i) => i.plannedDestinationId === visitingModalDest.id
                 );
-                const displayItems =
-                  targetItems.length > 0
-                    ? targetItems
-                    : items.filter((i) => i.state !== 'returned');
 
                 return (
                   <>
@@ -1564,9 +1709,7 @@ export default function TripDetailScreen() {
                                 label={
                                   isChecked
                                     ? t.trip.visitedDialogItemUsedLabel
-                                    : item.state === 'packed'
-                                    ? 'Packed'
-                                    : 'Planned'
+                                    : (language === 'en' ? 'In luggage' : 'Di dalam tas')
                                 }
                                 variant={isChecked ? 'success' : 'neutral'}
                                 size="sm"
@@ -1590,7 +1733,10 @@ export default function TripDetailScreen() {
                               for (const it of displayItems) {
                                 await packingRepository.updateItemState(it.id, 'used');
                               }
-                              setVisitedStopIds((prev) => [...prev, visitingModalDest.id]);
+                              await destinationRepository.update(visitingModalDest.id, { isVisited: true });
+                              setVisitedStopIds((prev) => prev.includes(visitingModalDest.id)
+                                ? prev
+                                : [...prev, visitingModalDest.id]);
                               setVisitingModalDest(null);
                               loadTripData();
                             } catch {
@@ -1600,39 +1746,33 @@ export default function TripDetailScreen() {
                         />
                       )}
 
-                      {/* 2. Save Selection if some checked */}
-                      {displayItems.length > 0 && selectedUsedItemIds.length > 0 && (
-                        <Button
-                          variant="accent"
-                          size="sm"
-                          label={t.trip.visitedDialogSaveSelection}
-                          onPress={async () => {
-                            try {
-                              for (const idToUpdate of selectedUsedItemIds) {
-                                await packingRepository.updateItemState(idToUpdate, 'used');
-                              }
-                              setVisitedStopIds((prev) => [...prev, visitingModalDest.id]);
-                              setVisitingModalDest(null);
-                              loadTripData();
-                            } catch {
-                              Alert.alert('Error', 'Failed to update selected items.');
-                            }
-                          }}
-                        />
-                      )}
-
-                      {/* 3. Skip / No changes */}
+                      {/* 2. Save selection; anything not marked used remains packed */}
                       <Button
-                        variant="secondary"
+                        variant="accent"
                         size="sm"
-                        label={t.trip.visitedDialogNoChange}
-                        onPress={() => {
-                          setVisitedStopIds((prev) => [...prev, visitingModalDest.id]);
-                          setVisitingModalDest(null);
+                        label={t.trip.visitedDialogSaveSelection}
+                        onPress={async () => {
+                          try {
+                            for (const item of displayItems) {
+                              await packingRepository.updateItemState(
+                                item.id,
+                                selectedUsedItemIds.includes(item.id) ? 'used' : 'packed'
+                              );
+                            }
+                            await destinationRepository.update(visitingModalDest.id, { isVisited: true });
+                            setVisitedStopIds((prev) => prev.includes(visitingModalDest.id)
+                              ? prev
+                              : [...prev, visitingModalDest.id]);
+                            setVisitingModalDest(null);
+                            loadTripData();
+                          } catch {
+                            Alert.alert('Error', 'Failed to update items.');
+                          }
                         }}
                       />
 
-                      {/* 4. Cancel */}
+                      {/* Skip/no-change action intentionally omitted: marking visited always saves item states. */}
+                      {/* Cancel closes without marking the destination visited. */}
                       <Button
                         variant="ghost"
                         size="sm"
@@ -2031,55 +2171,6 @@ const styles = StyleSheet.create({
   deleteMomentBtn: {
     padding: spacing[2],
   },
-  closeCard: {
-    padding: spacing[5],
-    marginBottom: spacing[6],
-    borderRadius: radius.xl,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  endTripIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  closeHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing[3],
-  },
-  closeTitle: {
-    marginLeft: 6,
-  },
-  closeDesc: {
-    marginBottom: spacing[4],
-    lineHeight: 20,
-  },
-  packSubTabContainer: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: spacing[3],
-  },
-  packSubTabBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 9,
-    paddingHorizontal: 8,
-    borderRadius: radius.md,
-    backgroundColor: '#EEF2F6',
-    gap: 6,
-  },
-  packSubTabText: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
   modeGuidanceBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2155,6 +2246,29 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 10,
     elevation: 8,
+  },
+  inventoryPickerCard: {
+    borderRadius: radius.xl,
+    padding: spacing[4],
+    maxHeight: '82%',
+  },
+  inventorySearch: {
+    minHeight: 44,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing[3],
+    marginBottom: spacing[2],
+  },
+  inventoryPickerRow: {
+    minHeight: 58,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing[2],
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  endTripButton: {
+    marginTop: spacing[3],
+    marginBottom: spacing[6],
   },
   destPhotoPickBtn: {
     flexDirection: 'row',

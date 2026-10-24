@@ -25,6 +25,7 @@ import { DestinationRecord } from '@/db/schema/destinations';
 import { TripItemRecord } from '@/db/schema/trip-items';
 import { TripRecord } from '@/db/schema/trips';
 import { generateId } from '@/core/utils/id';
+import { mediaService } from '@/services/media';
 
 interface DestinationTodo {
   id: string;
@@ -132,9 +133,13 @@ export default function DestinationDetailScreen() {
       }
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        const selectedUri = result.assets[0].uri;
-        await destinationRepository.update(id!, { imageUri: selectedUri });
-        setDestination((prev) => (prev ? { ...prev, imageUri: selectedUri } : prev));
+        const oldImageUri = destination?.imageUri;
+        const media = await mediaService.savePhoto({ sourceUri: result.assets[0].uri });
+        await destinationRepository.update(id!, { imageUri: media.fullUri });
+        setDestination((prev) => (prev ? { ...prev, imageUri: media.fullUri } : prev));
+        if (oldImageUri && oldImageUri !== media.fullUri) {
+          await mediaService.deletePhotoByUri(oldImageUri);
+        }
       }
     } catch {
       Alert.alert('Error', 'Failed to update location photo.');
@@ -207,7 +212,7 @@ export default function DestinationDetailScreen() {
 
   // Items mapped to this destination
   const assignedItems = tripItems.filter((item) => item.plannedDestinationId === id);
-  const unassignedItems = tripItems.filter((item) => item.plannedDestinationId !== id);
+  const unassignedItems = tripItems.filter((item) => item.plannedDestinationId === null);
 
   // Shift item destination
   const handleShiftDestination = async (

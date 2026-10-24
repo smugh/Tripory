@@ -1,4 +1,4 @@
-import { eq, asc } from 'drizzle-orm';
+import { eq, asc, and } from 'drizzle-orm';
 import { db } from '../client';
 import { destinations, DestinationRecord, NewDestinationRecord } from '../schema/destinations';
 import { generateId } from '@/core/utils/id';
@@ -8,7 +8,7 @@ export const destinationRepository = {
     return db
       .select()
       .from(destinations)
-      .orderBy(asc(destinations.dayNumber), asc(destinations.orderIndex))
+      .orderBy(asc(destinations.orderIndex), asc(destinations.dayNumber))
       .all();
   },
 
@@ -17,7 +17,7 @@ export const destinationRepository = {
       .select()
       .from(destinations)
       .where(eq(destinations.tripId, tripId))
-      .orderBy(asc(destinations.dayNumber), asc(destinations.orderIndex))
+      .orderBy(asc(destinations.orderIndex), asc(destinations.dayNumber))
       .all();
   },
 
@@ -43,5 +43,14 @@ export const destinationRepository = {
 
   async delete(id: string): Promise<void> {
     db.delete(destinations).where(eq(destinations.id, id)).run();
+  },
+
+  async reorderForTrip(tripId: string, orderedIds: string[]): Promise<void> {
+    orderedIds.forEach((id, index) => {
+      db.update(destinations)
+        .set({ orderIndex: index })
+        .where(and(eq(destinations.id, id), eq(destinations.tripId, tripId)))
+        .run();
+    });
   },
 };

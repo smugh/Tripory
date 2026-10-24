@@ -11,6 +11,7 @@ export const destinations = sqliteTable('destinations', {
   name: text('name').notNull(),
   dayNumber: integer('day_number').notNull().default(1),
   orderIndex: integer('order_index').notNull().default(0),
+  isVisited: integer('is_visited', { mode: 'boolean' }).notNull().default(false),
   plannedTime: text('planned_time'), // contoh: '08:00', '14:30'
   activity: text('activity'),
   locationLabel: text('location_label'),

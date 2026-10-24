@@ -1,5 +1,6 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
+import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { MediaFile, SaveMediaInput } from './media-types';
 import { generateId } from '@/core/utils/id';
 import { logger } from '@/core/utils/logger';
@@ -130,30 +131,51 @@ class MediaService {
     await this.ensureDirectoryExists();
 
     const mediaId = generateId('img');
-    const extension = input.sourceUri.split('.').pop()?.split('?')[0] || 'jpg';
-    const relativePath = `${APP_CONFIG.storageMediaDir}/${mediaId}.${extension}`;
+    const relativePath = `${APP_CONFIG.storageMediaDir}/${mediaId}.jpg`;
     const destinationUri = `${FileSystem.documentDirectory ?? ''}${relativePath}`;
+    const context = ImageManipulator.manipulate(input.sourceUri, { maxWidth: 1600, maxHeight: 1600 });
+    let renderedImage: Awaited<ReturnType<typeof context.renderAsync>> | null = null;
 
-    if (FileSystem.documentDirectory) {
-      await FileSystem.copyAsync({
-        from: input.sourceUri,
-        to: destinationUri,
+    try {
+      renderedImage = await context.renderAsync();
+      const compressedImage = await renderedImage.saveAsync({
+        format: SaveFormat.JPEG,
+        compress: 0.72,
       });
+
+      if (FileSystem.documentDirectory) {
+        await FileSystem.moveAsync({ from: compressedImage.uri, to: destinationUri });
+      }
+
+      const savedUri = FileSystem.documentDirectory ? destinationUri : compressedImage.uri;
+      const info = await FileSystem.getInfoAsync(savedUri);
+      const media: MediaFile = {
+        id: mediaId,
+        relativePath,
+        fullUri: savedUri,
+        sizeBytes: info.exists && 'size' in info ? (info as { size?: number }).size : undefined,
+        mimeType: 'image/jpeg',
+        createdAt: new Date().toISOString(),
+      };
+
+      logger.info(`Foto dikompresi dan disimpan: ${relativePath}`, {
+        category: 'media',
+      });
+      return media;
+    } finally {
+      renderedImage?.release();
+      context.release();
     }
+  }
 
-    const info = FileSystem.documentDirectory ? await FileSystem.getInfoAsync(destinationUri) : null;
+  isManagedPhotoUri(uri: string): boolean {
+    return Boolean(FileSystem.documentDirectory && uri.startsWith(`${FileSystem.documentDirectory}${APP_CONFIG.storageMediaDir}/`));
+  }
 
-    const media: MediaFile = {
-      id: mediaId,
-      relativePath,
-      fullUri: destinationUri,
-      sizeBytes: info && 'size' in info ? (info as { size?: number }).size : undefined,
-      mimeType: input.mimeType || 'image/jpeg',
-      createdAt: new Date().toISOString(),
-    };
-
-    logger.info(`Foto disimpan secara lokal: ${relativePath}`, { category: 'media' });
-    return media;
+  async deletePhotoByUri(uri: string): Promise<void> {
+    if (!this.isManagedPhotoUri(uri) || !FileSystem.documentDirectory) return;
+    const relativePath = uri.slice(FileSystem.documentDirectory.length);
+    await this.deletePhoto(relativePath);
   }
 
   /**

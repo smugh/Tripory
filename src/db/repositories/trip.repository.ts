@@ -36,6 +36,13 @@ export const tripRepository = {
     return newRecord as TripRecord;
   },
 
+  async update(id: string, updates: Partial<Omit<NewTripRecord, 'id' | 'createdAt'>>): Promise<void> {
+    db.update(trips)
+      .set({ ...updates, updatedAt: new Date().toISOString() })
+      .where(eq(trips.id, id))
+      .run();
+  },
+
   async updateStatus(
     id: string,
     status: TripRecord['status'],

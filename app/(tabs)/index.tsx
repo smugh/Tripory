@@ -27,15 +27,17 @@ export default function HomeScreen() {
   const [destinations, setDestinations] = useState<DestinationRecord[]>([]);
   const [albumSortOrder, setAlbumSortOrder] = useState<'newest' | 'oldest'>('newest');
   const [albumViewMode, setAlbumViewMode] = useState<'grid' | 'list'>('grid');
-  const [albumCategoryFilter, setAlbumCategoryFilter] = useState<'all' | 'past' | 'ongoing' | 'upcoming'>('all');
 
+  const completedTripsList = useMemo(() => trips.filter((t) => t.status === 'completed'), [trips]);
+  const completedTripIds = useMemo(() => new Set(completedTripsList.map((trip) => trip.id)), [completedTripsList]);
+  const albumMoments = useMemo(() => moments.filter((moment) => completedTripIds.has(moment.tripId)), [moments, completedTripIds]);
   const sortedMoments = useMemo(() => {
-    return [...moments].sort((a, b) => {
+    return [...albumMoments].sort((a, b) => {
       const timeA = new Date(a.capturedAt).getTime();
       const timeB = new Date(b.capturedAt).getTime();
       return albumSortOrder === 'newest' ? timeB - timeA : timeA - timeB;
     });
-  }, [moments, albumSortOrder]);
+  }, [albumMoments, albumSortOrder]);
 
   // Helper to get cover photo for trip
   const getTripCoverPhoto = (tripId: string): string | null => {
@@ -50,30 +52,15 @@ export default function HomeScreen() {
     return null;
   };
 
-  // Filtered trips for Album
-  const pastTripsList = useMemo(() => trips.filter((t) => t.status === 'completed'), [trips]);
-  const ongoingTripsList = useMemo(() => trips.filter((t) => t.status === 'ongoing'), [trips]);
-  const upcomingTripsList = useMemo(
-    () => trips.filter((t) => t.status === 'preparing' || t.status === 'ready' || t.status === 'draft'),
-    [trips]
-  );
-
-  const filteredAlbumTrips = useMemo(() => {
-    return trips
-      .filter((trip) => {
-        if (albumCategoryFilter === 'past') return trip.status === 'completed';
-        if (albumCategoryFilter === 'ongoing') return trip.status === 'ongoing';
-        if (albumCategoryFilter === 'upcoming') {
-          return trip.status === 'preparing' || trip.status === 'ready' || trip.status === 'draft';
-        }
-        return true;
-      })
-      .sort((a, b) => {
+  // The travel memories album is an archive of completed trips only.
+  const filteredAlbumTrips = useMemo(
+    () => [...completedTripsList].sort((a, b) => {
         const timeA = new Date(a.startDate).getTime();
         const timeB = new Date(b.startDate).getTime();
         return albumSortOrder === 'newest' ? timeB - timeA : timeA - timeB;
-      });
-  }, [trips, albumCategoryFilter, albumSortOrder]);
+      }),
+    [completedTripsList, albumSortOrder]
+  );
 
   // Ambil semua rencana perjalanan yang sedang aktif / dalam proses (bukan arsip selesai)
   const planningTrips = trips.filter((t) => t.status !== 'completed');
@@ -82,7 +69,6 @@ export default function HomeScreen() {
 
   const totalTrips = trips.length;
   const completedTrips = trips.filter((t) => t.status === 'completed').length;
-  const completedTripsList = useMemo(() => trips.filter((t) => t.status === 'completed'), [trips]);
   const activeCount = trips.filter(
     (t) => t.status === 'ongoing' || t.status === 'preparing' || t.status === 'ready'
   ).length;
@@ -442,7 +428,7 @@ export default function HomeScreen() {
           </Card>
         )}
 
-        {/* Album Kenangan Perjalanan (List / Grid dengan Filter Kategori & Terbaru - Lama) */}
+        {/* Travel Memories: archive of completed trips */}
         <View style={styles.section}>
           <View style={styles.albumHeader}>
             <View style={styles.albumHeaderLeft}>
@@ -452,60 +438,16 @@ export default function HomeScreen() {
               </Typography>
             </View>
             <Badge
-              label={
-                trips.length > 0 && moments.length > 0
-                  ? format(t.home.albumTripsAndPhotosBadge, { trips: trips.length, photos: moments.length })
-                  : trips.length > 0
-                  ? (trips.length === 1 ? t.home.albumOneTripBadge : format(t.home.albumTripsBadge, { count: trips.length }))
-                  : (moments.length === 1 ? t.home.onePhotoBadge : format(t.home.photosBadge, { count: moments.length }))
-              }
+              label={format(t.home.albumTripsAndPhotosBadge, {
+                trips: completedTripsList.length,
+                photos: albumMoments.length,
+              })}
               variant="primary"
               size="sm"
             />
           </View>
 
-          {/* 1. Category Filter Tabs (All, Past / Sudah Lewat, Ongoing / Sedang Berjalan, Upcoming / Akan Datang) */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.categoryScroll}
-          >
-            {[
-              { key: 'all', label: t.home.albumFilterAll, count: trips.length },
-              { key: 'past', label: t.home.albumFilterPast, count: pastTripsList.length },
-              { key: 'ongoing', label: t.home.albumFilterOngoing, count: ongoingTripsList.length },
-              { key: 'upcoming', label: t.home.albumFilterUpcoming, count: upcomingTripsList.length },
-            ].map((cat) => {
-              const isActive = albumCategoryFilter === cat.key;
-              return (
-                <Pressable
-                  key={cat.key}
-                  style={[
-                    styles.categoryPill,
-                    {
-                      backgroundColor: isActive
-                        ? colors.brand.coral
-                        : isDarkMode
-                        ? colors.surface.card
-                        : '#F1F5F9',
-                      borderColor: isActive ? colors.brand.coral : colors.border.default,
-                    },
-                  ]}
-                  onPress={() => setAlbumCategoryFilter(cat.key as any)}
-                >
-                  <Typography
-                    variant="caption"
-                    color={isActive ? '#FFFFFF' : colors.text.secondary}
-                    style={{ fontWeight: isActive ? '700' : '600' }}
-                  >
-                    {cat.label} ({cat.count})
-                  </Typography>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-
-          {/* 2. Controls: Sort (Newest - Oldest) & View Mode (Grid / List) */}
+          {/* Archive only: completed journeys, with sorting and layout controls. */}
           <View style={styles.albumControlsRow}>
             {/* Sort Segment */}
             <View style={[styles.sortSegmentWrap, { backgroundColor: colors.surface.card, borderColor: colors.border.default }]}>
@@ -608,7 +550,7 @@ export default function HomeScreen() {
                       },
                       pressed && { opacity: 0.92, transform: [{ scale: 0.995 }] },
                     ]}
-                    onPress={() => router.push(`/trip/${itemTrip.id}`)}
+                    onPress={() => router.push(`/memories/${itemTrip.id}`)}
                   >
                     {/* Left: Event Photo Thumbnail */}
                     <View style={[styles.tripListThumbWrap, { backgroundColor: isDarkMode ? '#1E293B' : '#F1F5F9' }]}>
@@ -670,6 +612,14 @@ export default function HomeScreen() {
                           {formatDateRange(itemTrip.startDate, itemTrip.endDate, language)} • {formatTripDurationLabel(itemTrip.startDate, itemTrip.endDate, language)}
                         </Typography>
                       </View>
+                      {itemTrip.hasMissingItems ? (
+                        <View style={styles.albumMissingNote}>
+                          <Ionicons name="alert-circle" size={13} color={colors.status.error} />
+                          <Typography variant="caption" color={colors.status.error} style={styles.albumMissingText}>
+                            {t.home.albumMissingItemsNote}
+                          </Typography>
+                        </View>
+                      ) : null}
                     </View>
 
                     {/* Right: Chevron */}
@@ -695,7 +645,7 @@ export default function HomeScreen() {
                       },
                       pressed && { opacity: 0.92, transform: [{ scale: 0.985 }] },
                     ]}
-                    onPress={() => router.push(`/trip/${itemTrip.id}`)}
+                    onPress={() => router.push(`/memories/${itemTrip.id}`)}
                   >
                     {/* Top: Photo Cover */}
                     <View style={[styles.tripGridImageWrap, { backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0' }]}>
@@ -744,6 +694,14 @@ export default function HomeScreen() {
                           {itemTrip.destination}
                         </Typography>
                       </View>
+                      {itemTrip.hasMissingItems ? (
+                        <View style={styles.albumMissingNote}>
+                          <Ionicons name="alert-circle" size={13} color={colors.status.error} />
+                          <Typography variant="caption" color={colors.status.error} style={styles.albumMissingText} numberOfLines={2}>
+                            {t.home.albumMissingItemsNote}
+                          </Typography>
+                        </View>
+                      ) : null}
 
                       <View style={styles.tripGridMetaRow}>
                         <Ionicons name="calendar-outline" size={11} color={colors.text.muted} />
@@ -759,7 +717,7 @@ export default function HomeScreen() {
           )}
 
           {/* 4. Sub-section: Captured Photo Memories Gallery (if any) */}
-          {moments.length > 0 && (
+          {albumMoments.length > 0 && (
             <View style={styles.photoMemoriesSection}>
               <View style={styles.subSectionHeader}>
                 <Ionicons name="camera" size={16} color={colors.brand.blue} />
@@ -767,7 +725,7 @@ export default function HomeScreen() {
                   {t.home.albumPhotoGalleryTitle}
                 </Typography>
                 <Badge
-                  label={`${moments.length}`}
+                  label={`${albumMoments.length}`}
                   variant="primary"
                   size="sm"
                 />
@@ -784,7 +742,7 @@ export default function HomeScreen() {
                       styles.momentMiniCard,
                       { backgroundColor: colors.surface.card, borderColor: colors.border.default },
                     ]}
-                    onPress={() => router.push(`/trip/${m.tripId}`)}
+                    onPress={() => router.push(`/memories/${m.tripId}`)}
                   >
                     <View style={styles.momentMiniImageWrap}>
                       {m.photoPath && !m.photoPath.startsWith('local://placeholder') ? (
@@ -1168,6 +1126,18 @@ const styles = StyleSheet.create({
   tripListDateText: {
     fontSize: 11,
     marginLeft: 4,
+  },
+  albumMissingNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: 4,
+    gap: 4,
+  },
+  albumMissingText: {
+    flex: 1,
+    fontSize: 10,
+    lineHeight: 13,
+    fontWeight: '600',
   },
   tripGridContainer: {
     flexDirection: 'row',

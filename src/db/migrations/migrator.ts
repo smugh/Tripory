@@ -138,6 +138,13 @@ export const MIGRATIONS: MigrationStep[] = [
       ALTER TABLE items ADD COLUMN image_uri TEXT;
     `,
   },
+  {
+    version: 5,
+    name: '0004_add_destination_visited_state',
+    sql: `
+      ALTER TABLE destinations ADD COLUMN is_visited INTEGER NOT NULL DEFAULT 0;
+    `,
+  },
 ];
 
 /**

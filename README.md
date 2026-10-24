@@ -66,6 +66,29 @@ Pilihan eksekusi cepat:
 - **iOS**: Tekan tombol `i` di terminal atau jalankan `npm run ios` *(memerlukan macOS dengan Xcode)*
 - **Web**: Tekan tombol `w` di terminal atau jalankan `npm run web`
 
+### Android lewat Wireless Debugging (tanpa kabel)
+
+Pastikan laptop dan ponsel Android berada di jaringan Wi-Fi yang sama. Di ponsel, buka **Developer options → Wireless debugging**, aktifkan fiturnya, lalu pilih **Pair device with pairing code**. Jalankan perintah berikut di terminal dan masukkan kode pairing yang tampil di ponsel:
+
+```bash
+adb pair IP_PONSEL:PORT_PAIRING
+```
+
+Setelah pairing berhasil, kembali ke halaman **Wireless debugging** utama dan gunakan alamat serta port yang tampil di sana (port ini berbeda dari port pairing):
+
+```bash
+adb connect IP_PONSEL:PORT_DEBUG
+adb devices
+```
+
+Pastikan perangkat muncul dengan status `device`, lalu mulai Metro dalam mode LAN:
+
+```bash
+npm run start:lan
+```
+
+Untuk Expo Go, scan QR code dari terminal dengan Expo Go di ponsel. Untuk memasang development build native lewat ADB, jalankan `npm run android` setelah koneksi ADB aktif. Jika ponsel dan laptop ada di jaringan berbeda atau Wi-Fi memblokir koneksi antarperangkat, gunakan hotspot yang sama atau `npx expo start --tunnel` untuk Expo Go. Wireless Debugging tersedia di Android 11 ke atas; pada versi lebih lama, sambungkan USB sekali lalu jalankan `adb tcpip 5555` dan `adb connect IP_PONSEL:5555`.
+
 ---
 
 ## 💾 Cara Menjalankan Migrasi Database

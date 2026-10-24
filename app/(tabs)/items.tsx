@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, StyleSheet, FlatList, Modal, Alert, Pressable, ScrollView, Image } from 'react-native';
+import { View, StyleSheet, FlatList, Modal, Alert, Pressable, ScrollView, Image, KeyboardAvoidingView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { spacing, radius, useThemeColors } from '@/core/theme';
@@ -9,6 +9,7 @@ import { ItemRecord } from '@/db/schema/items';
 import { useCategoryStore } from '@/stores/category-store';
 import { useI18n } from '@/core/i18n';
 import { useUIStore } from '@/stores/ui-store';
+import { mediaService } from '@/services/media';
 
 export default function ItemsScreen() {
   const themeColors = useThemeColors();
@@ -141,13 +142,20 @@ export default function ItemsScreen() {
     }
 
     try {
+      const previousImageUri = editingItem?.imageUri ?? null;
+      let savedImageUri = itemImageUri || null;
+      if (savedImageUri && !mediaService.isManagedPhotoUri(savedImageUri)) {
+        const savedPhoto = await mediaService.savePhoto({ sourceUri: savedImageUri });
+        savedImageUri = savedPhoto.fullUri;
+      }
+
       if (editingItem) {
         // Update existing item (Update / U of CRUD)
         await itemRepository.update(editingItem.id, {
           name: itemName.trim(),
           category: itemCategory,
           notes: itemNotes.trim() || null,
-          imageUri: itemImageUri || null,
+          imageUri: savedImageUri,
         });
       } else {
         // Create new item (Create / C of CRUD)
@@ -156,8 +164,12 @@ export default function ItemsScreen() {
           category: itemCategory,
           quantity: 1,
           notes: itemNotes.trim() || null,
-          imageUri: itemImageUri || null,
+          imageUri: savedImageUri,
         });
+      }
+
+      if (previousImageUri && previousImageUri !== savedImageUri) {
+        await mediaService.deletePhotoByUri(previousImageUri);
       }
 
       setIsModalOpen(false);
@@ -183,6 +195,7 @@ export default function ItemsScreen() {
           onPress: async () => {
             try {
               await itemRepository.delete(item.id);
+              if (item.imageUri) await mediaService.deletePhotoByUri(item.imageUri);
               if (isModalOpen && editingItem?.id === item.id) {
                 setIsModalOpen(false);
                 setEditingItem(null);
@@ -379,14 +392,23 @@ export default function ItemsScreen() {
         transparent={true}
         onRequestClose={() => setIsModalOpen(false)}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 24 : 0}
+        >
           <View
             style={[
               styles.modalContent,
               { backgroundColor: themeColors.surface.card, borderColor: themeColors.border.default },
             ]}
           >
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+              contentContainerStyle={styles.modalScrollContent}
+            >
               <View style={styles.modalHeader}>
                 <Typography variant="h2" color={themeColors.brand.navy}>
                   {editingItem ? t.inventory.editModalTitle : t.inventory.modalTitle}
@@ -523,7 +545,7 @@ export default function ItemsScreen() {
               </View>
             </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </ScreenContainer>
   );
@@ -615,12 +637,16 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    maxHeight: '85%',
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
     padding: spacing[5],
     paddingBottom: spacing[8],
     borderWidth: 1,
+    maxHeight: '88%',
+    flexShrink: 1,
+  },
+  modalScrollContent: {
+    paddingBottom: spacing[2],
   },
   modalHeader: {
     flexDirection: 'row',

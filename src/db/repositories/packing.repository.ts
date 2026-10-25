@@ -78,6 +78,12 @@ export const packingRepository = {
     db.update(tripItems).set({ state, updatedAt: now }).where(eq(tripItems.id, parentId)).run();
   },
 
+  async updateItemParent(id: string, parentId: string | null): Promise<void> {
+    assertTripRecordEditable('trip_items', id);
+    const now = new Date().toISOString();
+    db.update(tripItems).set({ parentId, updatedAt: now }).where(eq(tripItems.id, id)).run();
+  },
+
   /**
    * Skenario Baju C: Mencatat actual usage di sebuah destinasi
    */

@@ -43,4 +43,9 @@ export const itemRepository = {
     const now = new Date().toISOString();
     db.update(items).set({ ...updates, updatedAt: now }).where(eq(items.id, id)).run();
   },
+
+  async updateParent(id: string, parentId: string | null): Promise<void> {
+    const now = new Date().toISOString();
+    db.update(items).set({ parentId, updatedAt: now }).where(eq(items.id, id)).run();
+  },
 };

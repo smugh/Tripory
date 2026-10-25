@@ -11,13 +11,14 @@ import { isDropOffItem } from '@/domains/packing/types';
 
 export type ItemBounds = { x: number; y: number; width: number; height: number };
 
-export function PackingItemRow({ item, imageUri, destinationName, busy, onPack, onMenu }: {
+export function PackingItemRow({ item, imageUri, destinationName, busy, onPack, onMenu, onPress }: {
   item: TripItemRecord;
   imageUri?: string | null;
   destinationName?: string;
   busy: boolean;
   onPack: (bounds?: ItemBounds) => void;
   onMenu: () => void;
+  onPress?: () => void;
 }) {
   const colors = useThemeColors();
   const { language } = useI18n();
@@ -48,67 +49,78 @@ export function PackingItemRow({ item, imageUri, destinationName, busy, onPack, 
         ],
       ]}
     >
-      <View
-        ref={thumbnail}
-        collapsable={false}
-        style={[
-          styles.thumbnail,
-          { backgroundColor: isDropOff ? (isDarkMode ? '#451A03' : '#FEF3C7') : colors.surface.muted },
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={language === 'en' ? `Details: ${item.customName}` : `Detail: ${item.customName}`}
+        disabled={busy || !onPress}
+        onPress={onPress}
+        style={({ pressed }) => [
+          styles.contentPressable,
+          pressed && { opacity: 0.75 },
         ]}
       >
-        {imageUri ? (
-          <Image source={{ uri: imageUri }} style={styles.image} />
-        ) : isDropOff ? (
-          <Ionicons name="gift" size={24} color="#EA580C" />
-        ) : (
-          <Ionicons name="cube-outline" size={23} color={colors.text.muted} />
-        )}
-      </View>
-      <View style={styles.copy}>
-        <View style={styles.titleBadgeRow}>
-          <Typography
-            variant="body"
-            color={isDropOff ? (isDarkMode ? '#FDBA74' : '#9A3412') : colors.brand.navy}
-            numberOfLines={2}
-            style={[styles.name, isDropOff && styles.dropOffName]}
-          >
-            {item.customName}
-          </Typography>
-          {isDropOff && (
-            <Badge
-              label="DROP OFF"
-              variant="accent"
-              size="sm"
-            />
+        <View
+          ref={thumbnail}
+          collapsable={false}
+          style={[
+            styles.thumbnail,
+            { backgroundColor: isDropOff ? (isDarkMode ? '#451A03' : '#FEF3C7') : colors.surface.muted },
+          ]}
+        >
+          {imageUri ? (
+            <Image source={{ uri: imageUri }} style={styles.image} />
+          ) : isDropOff ? (
+            <Ionicons name="gift" size={24} color="#EA580C" />
+          ) : (
+            <Ionicons name="cube-outline" size={23} color={colors.text.muted} />
           )}
         </View>
-
-        <Typography variant="caption" color={colors.text.muted} style={styles.meta}>
-          {item.category} · {language === 'en' ? 'Qty' : 'Jumlah'}: {item.quantity}
-          {isMissing
-            ? (language === 'en' ? ' · Missing' : ' · Hilang')
-            : isDroppedOff
-            ? (language === 'en' ? ' · Dropped off ✓' : ' · Sudah di-drop off ✓')
-            : inBag
-            ? (language === 'en' ? ' · In bag' : ' · Dalam tas')
-            : ''}
-        </Typography>
-
-        {isDropOff ? (
-          <View style={styles.dropTargetRow}>
-            <Ionicons name="location" size={13} color="#EA580C" />
-            <Typography variant="caption" style={[styles.dropTargetText, { color: isDarkMode ? '#FB923C' : '#C2410C' }]}>
-              {destinationName
-                ? (language === 'en' ? `Drop at: ${destinationName}` : `Drop di: ${destinationName}`)
-                : (language === 'en' ? 'Single-use · Drop at destination' : 'Sekali pakai · Drop di destinasi')}
+        <View style={styles.copy}>
+          <View style={styles.titleBadgeRow}>
+            <Typography
+              variant="body"
+              color={isDropOff ? (isDarkMode ? '#FDBA74' : '#9A3412') : colors.brand.navy}
+              numberOfLines={2}
+              style={[styles.name, isDropOff && styles.dropOffName]}
+            >
+              {item.customName}
             </Typography>
+            {isDropOff && (
+              <Badge
+                label="DROP OFF"
+                variant="accent"
+                size="sm"
+              />
+            )}
           </View>
-        ) : destinationName ? (
-          <Typography variant="caption" color={colors.text.muted} numberOfLines={1} style={styles.meta}>
-            {language === 'en' ? 'For' : 'Untuk'}: {destinationName}
+
+          <Typography variant="caption" color={colors.text.muted} style={styles.meta}>
+            {item.category} · {language === 'en' ? 'Qty' : 'Jumlah'}: {item.quantity}
+            {isMissing
+              ? (language === 'en' ? ' · Missing' : ' · Hilang')
+              : isDroppedOff
+              ? (language === 'en' ? ' · Dropped off ✓' : ' · Sudah di-drop off ✓')
+              : inBag
+              ? (language === 'en' ? ' · In bag' : ' · Dalam tas')
+              : ''}
           </Typography>
-        ) : null}
-      </View>
+
+          {isDropOff ? (
+            <View style={styles.dropTargetRow}>
+              <Ionicons name="location" size={13} color="#EA580C" />
+              <Typography variant="caption" style={[styles.dropTargetText, { color: isDarkMode ? '#FB923C' : '#C2410C' }]}>
+                {destinationName
+                  ? (language === 'en' ? `Drop at: ${destinationName}` : `Drop di: ${destinationName}`)
+                  : (language === 'en' ? 'Single-use · Drop at destination' : 'Sekali pakai · Drop di destinasi')}
+              </Typography>
+            </View>
+          ) : destinationName ? (
+            <Typography variant="caption" color={colors.text.muted} numberOfLines={1} style={styles.meta}>
+              {language === 'en' ? 'For' : 'Untuk'}: {destinationName}
+            </Typography>
+          ) : null}
+        </View>
+      </Pressable>
 
       <Pressable
         accessibilityRole="button"
@@ -138,6 +150,7 @@ export function PackingItemRow({ item, imageUri, destinationName, busy, onPack, 
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingVertical: 9, borderBottomWidth: StyleSheet.hairlineWidth },
+  contentPressable: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 9 },
   dropOffCard: {
     borderWidth: 1.5,
     borderRadius: 12,

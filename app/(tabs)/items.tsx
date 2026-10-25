@@ -41,6 +41,11 @@ export default function ItemsScreen() {
   const [itemNotes, setItemNotes] = useState('');
   const [itemIsGroup, setItemIsGroup] = useState(false);
   const [itemParentId, setItemParentId] = useState<string | null>(null);
+  const [selectedChildIds, setSelectedChildIds] = useState<string[]>([]);
+
+  // Item Detail & Quick Move States
+  const [detailItem, setDetailItem] = useState<ItemRecord | null>(null);
+  const [itemToMoveGroup, setItemToMoveGroup] = useState<ItemRecord | null>(null);
 
   const availableGroups = useMemo(
     () => itemsList.filter((it) => it.isGroup === 1 && it.id !== editingItem?.id),
@@ -67,7 +72,7 @@ export default function ItemsScreen() {
     }
   }, [categories, itemCategory]);
 
-  const handleOpenAddModal = () => {
+  const handleOpenAddItemModal = () => {
     setEditingItem(null);
     setItemName('');
     setItemCategory(categories[0] || 'Clothing');
@@ -75,6 +80,19 @@ export default function ItemsScreen() {
     setItemNotes('');
     setItemIsGroup(false);
     setItemParentId(null);
+    setSelectedChildIds([]);
+    setIsModalOpen(true);
+  };
+
+  const handleOpenAddGroupModal = () => {
+    setEditingItem(null);
+    setItemName('');
+    setItemCategory(categories[0] || 'Gear & Activities');
+    setItemImageUri(null);
+    setItemNotes('');
+    setItemIsGroup(true);
+    setItemParentId(null);
+    setSelectedChildIds([]);
     setIsModalOpen(true);
   };
 
@@ -86,7 +104,12 @@ export default function ItemsScreen() {
     setItemNotes(item.notes || '');
     setItemIsGroup(item.isGroup === 1);
     setItemParentId(item.parentId || null);
+    setSelectedChildIds(itemsList.filter((it) => it.parentId === item.id).map((it) => it.id));
     setIsModalOpen(true);
+  };
+
+  const handleOpenDetailModal = (item: ItemRecord) => {
+    setDetailItem(item);
   };
 
   const handlePickCamera = async () => {
@@ -181,9 +204,22 @@ export default function ItemsScreen() {
           isGroup: itemIsGroup ? 1 : 0,
           parentId: itemIsGroup ? null : (itemParentId || null),
         });
+
+        if (itemIsGroup) {
+          // Sync children
+          const currentChildren = itemsList.filter((it) => it.parentId === editingItem.id);
+          for (const ch of currentChildren) {
+            if (!selectedChildIds.includes(ch.id)) {
+              await itemRepository.updateParent(ch.id, null);
+            }
+          }
+          for (const childId of selectedChildIds) {
+            await itemRepository.updateParent(childId, editingItem.id);
+          }
+        }
       } else {
         // Create new item (Create / C of CRUD)
-        await itemRepository.create({
+        const created = await itemRepository.create({
           name: itemName.trim(),
           category: itemCategory,
           quantity: 1,
@@ -192,6 +228,12 @@ export default function ItemsScreen() {
           isGroup: itemIsGroup ? 1 : 0,
           parentId: itemIsGroup ? null : (itemParentId || null),
         });
+
+        if (itemIsGroup && selectedChildIds.length > 0) {
+          for (const childId of selectedChildIds) {
+            await itemRepository.updateParent(childId, created.id);
+          }
+        }
       }
 
       if (previousImageUri && previousImageUri !== savedImageUri) {
@@ -272,12 +314,20 @@ export default function ItemsScreen() {
           </Typography>
         </View>
 
-        <Button
-          label={t.inventory.addItemBtn}
-          size="sm"
-          variant="accent"
-          onPress={handleOpenAddModal}
-        />
+        <View style={styles.topBarActions}>
+          <Button
+            label={language === 'en' ? '+ Item' : '+ Barang'}
+            size="sm"
+            variant="secondary"
+            onPress={handleOpenAddItemModal}
+          />
+          <Button
+            label={language === 'en' ? '+ Group/Pack' : '+ Grup/Paket'}
+            size="sm"
+            variant="accent"
+            onPress={handleOpenAddGroupModal}
+          />
+        </View>
       </View>
 
       {/* Category Filter Pills */}
@@ -331,7 +381,7 @@ export default function ItemsScreen() {
 
           return (
             <Pressable
-              onPress={() => handleOpenEditModal(item)}
+              onPress={() => handleOpenDetailModal(item)}
               style={({ pressed }) => [{ opacity: pressed ? 0.92 : 1 }]}
             >
               <Card
@@ -426,7 +476,7 @@ export default function ItemsScreen() {
             title={t.inventory.emptyTitle}
             description={t.inventory.emptyDesc}
             actionLabel={t.inventory.emptyAction}
-            onAction={handleOpenAddModal}
+            onAction={handleOpenAddItemModal}
           />
         }
       />
@@ -599,10 +649,73 @@ export default function ItemsScreen() {
                 </View>
               )}
 
+              {itemIsGroup && (
+                <View style={{ marginTop: spacing[3], marginBottom: spacing[2] }}>
+                  <Typography variant="label" color={themeColors.text.primary} style={styles.inputLabel}>
+                    {t.inventory.selectItemsForGroup}
+                  </Typography>
+                  <Typography variant="caption" color={themeColors.text.secondary} style={{ marginBottom: 6 }}>
+                    {t.inventory.selectItemsForGroupDesc}
+                  </Typography>
+                  <View
+                    style={{
+                      maxHeight: 160,
+                      borderWidth: 1,
+                      borderColor: themeColors.border.default,
+                      borderRadius: radius.md,
+                      padding: 6,
+                      backgroundColor: isDarkMode ? themeColors.surface.muted : '#F8FAFC',
+                    }}
+                  >
+                    <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={true}>
+                      {itemsList
+                        .filter((it) => it.isGroup !== 1 && (it.parentId === null || it.parentId === editingItem?.id))
+                        .map((it) => {
+                          const isSelected = selectedChildIds.includes(it.id);
+                          return (
+                            <Pressable
+                              key={it.id}
+                              style={[
+                                styles.childSelectRow,
+                                {
+                                  backgroundColor: isSelected
+                                    ? (isDarkMode ? 'rgba(56, 189, 248, 0.15)' : '#E0F2FE')
+                                    : 'transparent',
+                                  borderColor: isSelected ? themeColors.brand.blue : themeColors.border.default,
+                                },
+                              ]}
+                              onPress={() => {
+                                setSelectedChildIds((prev) =>
+                                  prev.includes(it.id) ? prev.filter((id) => id !== it.id) : [...prev, it.id]
+                                );
+                              }}
+                            >
+                              <Ionicons
+                                name={isSelected ? 'checkbox' : 'square-outline'}
+                                size={18}
+                                color={isSelected ? themeColors.brand.blue : themeColors.text.secondary}
+                              />
+                              <Typography variant="caption" color={themeColors.text.primary} style={{ marginLeft: 8, fontWeight: '600', flex: 1 }}>
+                                {it.name}
+                              </Typography>
+                              <Badge label={it.category} variant="neutral" size="sm" />
+                            </Pressable>
+                          );
+                        })}
+                      {itemsList.filter((it) => it.isGroup !== 1 && (it.parentId === null || it.parentId === editingItem?.id)).length === 0 && (
+                        <Typography variant="caption" color={themeColors.text.secondary} style={{ fontStyle: 'italic', padding: 8 }}>
+                          {language === 'en' ? 'No standalone items available to bundle.' : 'Belum ada barang mandiri untuk dimasukkan.'}
+                        </Typography>
+                      )}
+                    </ScrollView>
+                  </View>
+                </View>
+              )}
+
               {/* 2. Item Name */}
               <Input
-                label={t.inventory.nameLabel}
-                placeholder={t.inventory.namePlaceholder}
+                label={itemIsGroup ? t.inventory.groupNameLabel : t.inventory.nameLabel}
+                placeholder={itemIsGroup ? t.inventory.groupNamePlaceholder : t.inventory.namePlaceholder}
                 value={itemName}
                 onChangeText={setItemName}
               />
@@ -674,6 +787,331 @@ export default function ItemsScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Item Detail Modal */}
+      {detailItem && (
+        <Modal
+          visible={!!detailItem}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setDetailItem(null)}
+        >
+          <Pressable style={styles.modalOverlayCenter} onPress={() => setDetailItem(null)}>
+            <Pressable
+              style={[
+                styles.detailModalCard,
+                { backgroundColor: themeColors.surface.card },
+              ]}
+              onPress={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <View style={styles.detailHeaderRow}>
+                <View style={{ flex: 1 }}>
+                  <Typography variant="h3" color={themeColors.brand.navy} style={{ fontWeight: '700' }}>
+                    {detailItem.isGroup === 1 ? t.inventory.groupDetailTitle : t.inventory.itemDetailTitle}
+                  </Typography>
+                </View>
+                <Pressable onPress={() => setDetailItem(null)} hitSlop={8}>
+                  <Ionicons name="close" size={22} color={themeColors.text.secondary} />
+                </Pressable>
+              </View>
+
+              <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
+                {/* Photo or Icon */}
+                <View style={styles.detailImageContainer}>
+                  {detailItem.imageUri ? (
+                    <Image source={{ uri: detailItem.imageUri }} style={styles.detailImage} resizeMode="cover" />
+                  ) : (
+                    <View
+                      style={[
+                        styles.detailIconCircle,
+                        {
+                          backgroundColor: detailItem.isGroup === 1
+                            ? (isDarkMode ? 'rgba(56, 189, 248, 0.2)' : '#E0F2FE')
+                            : (isDarkMode ? themeColors.surface.muted : '#F0F4F8'),
+                        },
+                      ]}
+                    >
+                      <Ionicons
+                        name={detailItem.isGroup === 1 ? 'cube' : getCategoryIcon(detailItem.category)}
+                        size={40}
+                        color={detailItem.isGroup === 1 ? themeColors.brand.blue : (isDarkMode ? '#93C5FD' : themeColors.brand.navy)}
+                      />
+                    </View>
+                  )}
+                </View>
+
+                {/* Name */}
+                <Typography variant="h2" color={themeColors.text.primary} style={styles.detailItemName}>
+                  {detailItem.name}
+                </Typography>
+
+                {/* Badges */}
+                <View style={styles.detailBadgesRow}>
+                  <Badge
+                    label={detailItem.isGroup === 1 ? t.inventory.groupBadge : (language === 'en' ? 'SINGLE ITEM' : 'BARANG SATUAN')}
+                    variant={detailItem.isGroup === 1 ? 'accent' : 'neutral'}
+                    size="md"
+                  />
+                  <Badge label={detailItem.category} variant="neutral" size="md" />
+                </View>
+
+                {/* Group / Container Mapping */}
+                <View
+                  style={[
+                    styles.detailMappingBox,
+                    {
+                      backgroundColor: isDarkMode ? themeColors.surface.muted : '#F8FAFC',
+                      borderColor: themeColors.border.default,
+                    },
+                  ]}
+                >
+                  <Typography variant="caption" color={themeColors.text.secondary} style={{ fontWeight: '700', marginBottom: 6 }}>
+                    {t.inventory.detailGroupMapping}
+                  </Typography>
+
+                  {detailItem.isGroup === 1 ? (
+                    <View>
+                      <Typography variant="body" color={themeColors.brand.navy} style={{ fontWeight: '600' }}>
+                        {format(t.inventory.detailGroupContains, {
+                          count: itemsList.filter((it) => it.parentId === detailItem.id).length,
+                        })}
+                      </Typography>
+                      <View style={{ marginTop: 6, gap: 4 }}>
+                        {itemsList
+                          .filter((it) => it.parentId === detailItem.id)
+                          .map((ch) => (
+                            <View key={ch.id} style={styles.detailChildItemRow}>
+                              <Ionicons name="return-down-forward" size={14} color={themeColors.brand.blue} />
+                              <Typography variant="caption" color={themeColors.text.primary} style={{ marginLeft: 6, fontWeight: '600', flex: 1 }}>
+                                {ch.name}
+                              </Typography>
+                              <Badge label={ch.category} variant="neutral" size="sm" />
+                            </View>
+                          ))}
+                        {itemsList.filter((it) => it.parentId === detailItem.id).length === 0 && (
+                          <Typography variant="caption" color={themeColors.text.secondary} style={{ fontStyle: 'italic', marginTop: 4 }}>
+                            {t.inventory.groupEmptyDesc}
+                          </Typography>
+                        )}
+                      </View>
+                    </View>
+                  ) : (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                      <View style={{ flex: 1 }}>
+                        {detailItem.parentId ? (
+                          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            <Ionicons name="cube" size={15} color={themeColors.brand.blue} style={{ marginRight: 5 }} />
+                            <Typography variant="body" color={themeColors.brand.navy} style={{ fontWeight: '600' }}>
+                              {itemsList.find((it) => it.id === detailItem.parentId)?.name || 'Unknown Group'}
+                            </Typography>
+                          </View>
+                        ) : (
+                          <Typography variant="body" color={themeColors.text.secondary}>
+                            {t.inventory.detailNoGroup}
+                          </Typography>
+                        )}
+                      </View>
+
+                      <Button
+                        label={language === 'en' ? 'Move Group' : 'Pindah Grup'}
+                        size="sm"
+                        variant="secondary"
+                        onPress={() => {
+                          const it = detailItem;
+                          setItemToMoveGroup(it);
+                        }}
+                      />
+                    </View>
+                  )}
+                </View>
+
+                {/* Notes */}
+                {detailItem.notes && (
+                  <View style={{ marginTop: spacing[3] }}>
+                    <Typography variant="caption" color={themeColors.text.secondary} style={{ fontWeight: '700', marginBottom: 4 }}>
+                      {t.inventory.detailNotesLabel}
+                    </Typography>
+                    <View
+                      style={[
+                        styles.detailNotesBox,
+                        {
+                          backgroundColor: isDarkMode ? themeColors.surface.muted : '#F8FAFC',
+                          borderColor: themeColors.border.default,
+                        },
+                      ]}
+                    >
+                      <Typography variant="body" color={themeColors.text.primary} style={{ fontSize: 13, lineHeight: 19 }}>
+                        {detailItem.notes}
+                      </Typography>
+                    </View>
+                  </View>
+                )}
+              </ScrollView>
+
+              {/* Action Buttons */}
+              <View style={styles.detailActionButtonsRow}>
+                <Button
+                  label={t.inventory.deleteBtn}
+                  variant="destructive"
+                  size="sm"
+                  onPress={() => {
+                    const it = detailItem;
+                    setDetailItem(null);
+                    handleConfirmDelete(it);
+                  }}
+                  style={{ marginRight: 'auto' }}
+                />
+                <Button
+                  label={detailItem.isGroup === 1 ? t.inventory.editGroupBtn : t.inventory.editItemBtn}
+                  variant="secondary"
+                  size="sm"
+                  onPress={() => {
+                    const it = detailItem;
+                    setDetailItem(null);
+                    handleOpenEditModal(it);
+                  }}
+                />
+                <Button
+                  label={t.inventory.cancelBtn}
+                  variant="ghost"
+                  size="sm"
+                  onPress={() => setDetailItem(null)}
+                />
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
+
+      {/* Quick Move Group Modal */}
+      {itemToMoveGroup && (
+        <Modal
+          visible={!!itemToMoveGroup}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setItemToMoveGroup(null)}
+        >
+          <Pressable style={styles.modalOverlayCenter} onPress={() => setItemToMoveGroup(null)}>
+            <Pressable
+              style={[
+                styles.modalCard,
+                { backgroundColor: themeColors.surface.card, maxHeight: '80%' },
+              ]}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <View style={{ flex: 1 }}>
+                  <Typography variant="h3" color={themeColors.brand.navy}>
+                    {t.inventory.moveToGroupTitle}
+                  </Typography>
+                  <Typography variant="caption" color={themeColors.text.secondary} style={{ marginTop: 2 }}>
+                    {t.inventory.moveToGroupSubtitle}
+                  </Typography>
+                </View>
+                <Pressable onPress={() => setItemToMoveGroup(null)} hitSlop={8}>
+                  <Ionicons name="close" size={22} color={themeColors.text.secondary} />
+                </Pressable>
+              </View>
+
+              <ScrollView style={{ maxHeight: 300 }}>
+                {/* Standalone option */}
+                <Pressable
+                  style={[
+                    styles.moveGroupOptionRow,
+                    {
+                      backgroundColor: !itemToMoveGroup.parentId
+                        ? (isDarkMode ? 'rgba(56, 189, 248, 0.15)' : '#E0F2FE')
+                        : (isDarkMode ? themeColors.surface.muted : '#F8FAFC'),
+                      borderColor: !itemToMoveGroup.parentId ? themeColors.brand.blue : themeColors.border.default,
+                    },
+                  ]}
+                  onPress={async () => {
+                    const it = itemToMoveGroup;
+                    try {
+                      await itemRepository.updateParent(it.id, null);
+                      await loadItems();
+                      if (detailItem?.id === it.id) {
+                        setDetailItem({ ...detailItem, parentId: null });
+                      }
+                      setItemToMoveGroup(null);
+                    } catch {
+                      Alert.alert('Error', 'Gagal memindahkan barang.');
+                    }
+                  }}
+                >
+                  <Ionicons name="cube-outline" size={20} color={!itemToMoveGroup.parentId ? themeColors.brand.blue : themeColors.text.secondary} />
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Typography variant="body" color={themeColors.brand.navy} style={{ fontWeight: '600' }}>
+                      {t.inventory.detachFromGroup}
+                    </Typography>
+                    <Typography variant="caption" color={themeColors.text.secondary}>
+                      {language === 'en' ? 'Make this item standalone' : 'Jadikan barang ini mandiri tanpa paket'}
+                    </Typography>
+                  </View>
+                  {!itemToMoveGroup.parentId && (
+                    <Ionicons name="checkmark-circle" size={20} color={themeColors.brand.blue} />
+                  )}
+                </Pressable>
+
+                {/* Available Groups */}
+                {availableGroups.map((grp: ItemRecord) => {
+                  const isSelected = itemToMoveGroup.parentId === grp.id;
+                  const childCount = itemsList.filter((it) => it.parentId === grp.id).length;
+                  return (
+                    <Pressable
+                      key={grp.id}
+                      style={[
+                        styles.moveGroupOptionRow,
+                        {
+                          backgroundColor: isSelected
+                            ? (isDarkMode ? 'rgba(56, 189, 248, 0.15)' : '#E0F2FE')
+                            : (isDarkMode ? themeColors.surface.muted : '#F8FAFC'),
+                          borderColor: isSelected ? themeColors.brand.blue : themeColors.border.default,
+                        },
+                      ]}
+                      onPress={async () => {
+                        const it = itemToMoveGroup;
+                        try {
+                          await itemRepository.updateParent(it.id, grp.id);
+                          await loadItems();
+                          if (detailItem?.id === it.id) {
+                            setDetailItem({ ...detailItem, parentId: grp.id });
+                          }
+                          setItemToMoveGroup(null);
+                        } catch {
+                          Alert.alert('Error', 'Gagal memindahkan barang.');
+                        }
+                      }}
+                    >
+                      <Ionicons name="cube" size={20} color={isSelected ? themeColors.brand.blue : themeColors.brand.coral} />
+                      <View style={{ flex: 1, marginLeft: 10 }}>
+                        <Typography variant="body" color={themeColors.brand.navy} style={{ fontWeight: '600' }}>
+                          {grp.name}
+                        </Typography>
+                        <Typography variant="caption" color={themeColors.text.secondary}>
+                          {childCount} {language === 'en' ? 'items inside' : 'barang di dalamnya'}
+                        </Typography>
+                      </View>
+                      {isSelected && (
+                        <Ionicons name="checkmark-circle" size={20} color={themeColors.brand.blue} />
+                      )}
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+
+              <Button
+                label={t.inventory.cancelBtn}
+                variant="secondary"
+                size="md"
+                onPress={() => setItemToMoveGroup(null)}
+                style={{ marginTop: 12 }}
+              />
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
     </ScreenContainer>
   );
 }
@@ -688,6 +1126,11 @@ const styles = StyleSheet.create({
   },
   topBarLeft: {
     flex: 1,
+  },
+  topBarActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   categoryWrap: {
     marginBottom: spacing[3],
@@ -762,6 +1205,107 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(7, 27, 77, 0.5)',
     justifyContent: 'flex-end',
+  },
+  modalOverlayCenter: {
+    flex: 1,
+    backgroundColor: 'rgba(7, 27, 77, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing[4],
+  },
+  modalCard: {
+    width: '100%',
+    borderRadius: radius.lg,
+    padding: spacing[5],
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  detailModalCard: {
+    width: '100%',
+    borderRadius: radius.xl,
+    padding: spacing[5],
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    maxHeight: '85%',
+  },
+  detailHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing[3],
+  },
+  detailImageContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing[3],
+  },
+  detailImage: {
+    width: '100%',
+    height: 180,
+    borderRadius: radius.lg,
+    backgroundColor: '#E2E8F0',
+  },
+  detailIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailItemName: {
+    fontSize: 20,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: spacing[2],
+  },
+  detailBadgesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: spacing[3],
+  },
+  detailMappingBox: {
+    borderWidth: 1,
+    borderRadius: radius.md,
+    padding: spacing[3],
+    marginBottom: spacing[2],
+  },
+  detailChildItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  detailNotesBox: {
+    borderWidth: 1,
+    borderRadius: radius.md,
+    padding: spacing[3],
+  },
+  detailActionButtonsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 8,
+    marginTop: spacing[4],
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#E2E8F0',
+    paddingTop: spacing[3],
+  },
+  moveGroupOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  childSelectRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    marginBottom: 4,
   },
   modalContent: {
     borderTopLeftRadius: radius.xl,

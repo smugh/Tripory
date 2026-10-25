@@ -31,6 +31,7 @@ import { usePackingFlight } from '@/components/packing/usePackingFlight';
 import { ArchivedTripDetails } from '@/components/trip/ArchivedTripDetails';
 import { VisitItemsReview } from '@/components/packing/VisitItemsReview';
 import { VisitItemState } from '@/components/packing/ItemStatusPicker';
+import { isDropOffItem } from '@/domains/packing/types';
 import { getNativeDatabase } from '@/db/client';
 
 type WorkspaceTab = 'roadmap' | 'packing' | 'moments';
@@ -71,6 +72,9 @@ export default function TripDetailScreen() {
   });
   const [itemToShift, setItemToShift] = useState<TripItemRecord | null>(null);
   const [activeItemMenu, setActiveItemMenu] = useState<TripItemRecord | null>(null);
+  const [selectedDetailItem, setSelectedDetailItem] = useState<TripItemRecord | null>(null);
+  const [itemToMoveGroup, setItemToMoveGroup] = useState<TripItemRecord | null>(null);
+  const [collapsedGroupIds, setCollapsedGroupIds] = useState<Record<string, boolean>>({});
   const [targetDestinationForNewItem, setTargetDestinationForNewItem] = useState<string | null>(null);
   const [visitedStopIds, setVisitedStopIds] = useState<string[]>([]);
   const [visitingModalDest, setVisitingModalDest] = useState<DestinationRecord | null>(null);
@@ -389,6 +393,7 @@ export default function TripDetailScreen() {
         {activeGroups.map(({ group, allChildren, visibleChildren }) => {
           const packedCount = allChildren.filter((c) => ['packed', 'available', 'returned', 'used'].includes(c.state)).length;
           const allPacked = allChildren.length > 0 && packedCount === allChildren.length;
+          const isCollapsed = !!collapsedGroupIds[group.id];
 
           return (
             <View
@@ -402,6 +407,20 @@ export default function TripDetailScreen() {
               ]}
             >
               <View style={styles.groupHeaderRow}>
+                <Pressable
+                  style={styles.groupCollapseBtn}
+                  onPress={() => setCollapsedGroupIds((prev) => ({ ...prev, [group.id]: !prev[group.id] }))}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={isCollapsed ? t.destDetail.expandGroup : t.destDetail.minimizeGroup}
+                >
+                  <Ionicons
+                    name={isCollapsed ? 'chevron-forward' : 'chevron-down'}
+                    size={18}
+                    color={colors.text.secondary}
+                  />
+                </Pressable>
+
                 <View
                   style={[
                     styles.groupIconCircle,
@@ -411,7 +430,10 @@ export default function TripDetailScreen() {
                   <Ionicons name="cube" size={17} color={colors.brand.blue} />
                 </View>
 
-                <View style={{ flex: 1, marginRight: 8 }}>
+                <Pressable
+                  style={{ flex: 1, marginRight: 8 }}
+                  onPress={() => setCollapsedGroupIds((prev) => ({ ...prev, [group.id]: !prev[group.id] }))}
+                >
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                     <Typography variant="body" color={colors.brand.navy} style={{ fontWeight: '700' }}>
                       {group.customName}
@@ -422,8 +444,9 @@ export default function TripDetailScreen() {
                     {allChildren.length > 0
                       ? `${packedCount}/${allChildren.length} ${language === 'en' ? 'Packed' : 'Dikemas'}`
                       : group.category}
+                    {isCollapsed ? ` · (${language === 'en' ? 'Minimized' : 'Diciutkan'})` : ''}
                   </Typography>
-                </View>
+                </Pressable>
 
                 {allChildren.length > 0 && (
                   <Pressable
@@ -463,23 +486,26 @@ export default function TripDetailScreen() {
                 </Pressable>
               </View>
 
-              <View style={styles.groupChildrenList}>
-                {visibleChildren.map((childItem) => (
-                  <View key={childItem.id} style={styles.groupChildRowWrapper}>
-                    <View style={[styles.childIndentGuide, { borderColor: isDarkMode ? '#475569' : '#CBD5E1' }]} />
-                    <View style={{ flex: 1 }}>
-                      <PackingItemRow
-                        item={childItem}
-                        imageUri={getPackingItemImage(childItem)}
-                        destinationName={destinations.find((destination) => destination.id === childItem.plannedDestinationId)?.name}
-                        busy={packingTransitionItemId !== null}
-                        onPack={(bounds) => handleTogglePack(childItem, bounds)}
-                        onMenu={() => setActiveItemMenu(childItem)}
-                      />
+              {!isCollapsed && (
+                <View style={styles.groupChildrenList}>
+                  {visibleChildren.map((childItem) => (
+                    <View key={childItem.id} style={styles.groupChildRowWrapper}>
+                      <View style={[styles.childIndentGuide, { borderColor: isDarkMode ? '#475569' : '#CBD5E1' }]} />
+                      <View style={{ flex: 1 }}>
+                        <PackingItemRow
+                          item={childItem}
+                          imageUri={getPackingItemImage(childItem)}
+                          destinationName={destinations.find((destination) => destination.id === childItem.plannedDestinationId)?.name}
+                          busy={packingTransitionItemId !== null}
+                          onPack={(bounds) => handleTogglePack(childItem, bounds)}
+                          onMenu={() => setActiveItemMenu(childItem)}
+                          onPress={() => setSelectedDetailItem(childItem)}
+                        />
+                      </View>
                     </View>
-                  </View>
-                ))}
-              </View>
+                  ))}
+                </View>
+              )}
             </View>
           );
         })}
@@ -493,6 +519,7 @@ export default function TripDetailScreen() {
             busy={packingTransitionItemId !== null}
             onPack={(bounds) => handleTogglePack(item, bounds)}
             onMenu={() => setActiveItemMenu(item)}
+            onPress={() => setSelectedDetailItem(item)}
           />
         ))}
       </View>
@@ -1736,6 +1763,32 @@ export default function TripDetailScreen() {
 
               {/* Action Options */}
               <View style={styles.sheetActionsList}>
+                {/* 0. View Full Details */}
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.sheetActionItem,
+                    { backgroundColor: colors.surface.page },
+                    pressed && { opacity: 0.8 },
+                  ]}
+                  onPress={() => {
+                    const item = activeItemMenu;
+                    setActiveItemMenu(null);
+                    setSelectedDetailItem(item);
+                  }}
+                >
+                  <View style={[styles.actionIconBox, { backgroundColor: `${colors.brand.navy}15` }]}>
+                    <Ionicons name="information-circle-outline" size={20} color={colors.brand.navy} />
+                  </View>
+                  <View style={styles.actionTextBox}>
+                    <Typography variant="label" color={colors.brand.navy}>
+                      {t.destDetail.actionViewDetail}
+                    </Typography>
+                    <Typography variant="caption" color={colors.text.muted} style={{ marginTop: 2 }}>
+                      {t.destDetail.actionViewDetailDesc}
+                    </Typography>
+                  </View>
+                </Pressable>
+
                 {/* 1. Toggle Packing Status */}
                 <Pressable
                   style={({ pressed }) => [
@@ -1772,6 +1825,34 @@ export default function TripDetailScreen() {
                     </Typography>
                   </View>
                 </Pressable>
+
+                {/* Move to Group / Container */}
+                {activeItemMenu.isGroup !== 1 && (
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.sheetActionItem,
+                      { backgroundColor: colors.surface.page },
+                      pressed && { opacity: 0.8 },
+                    ]}
+                    onPress={() => {
+                      const item = activeItemMenu;
+                      setActiveItemMenu(null);
+                      setItemToMoveGroup(item);
+                    }}
+                  >
+                    <View style={[styles.actionIconBox, { backgroundColor: 'rgba(56, 189, 248, 0.15)' }]}>
+                      <Ionicons name="cube" size={20} color={colors.brand.blue} />
+                    </View>
+                    <View style={styles.actionTextBox}>
+                      <Typography variant="label" color={colors.brand.navy}>
+                        {t.destDetail.actionShiftGroup}
+                      </Typography>
+                      <Typography variant="caption" color={colors.text.muted} style={{ marginTop: 2 }}>
+                        {t.destDetail.actionShiftGroupDesc}
+                      </Typography>
+                    </View>
+                  </Pressable>
+                )}
 
                 {/* 2. Toggle In-Trip Usage Status */}
                 <Pressable
@@ -1905,6 +1986,401 @@ export default function TripDetailScreen() {
                 label={t.destDetail.closeMenu}
                 onPress={() => setActiveItemMenu(null)}
                 style={{ marginTop: 14 }}
+              />
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
+
+      {/* MODAL: Trip Item Detail Modal */}
+      {selectedDetailItem && (
+        <Modal
+          transparent
+          animationType="fade"
+          visible={!!selectedDetailItem}
+          onRequestClose={() => setSelectedDetailItem(null)}
+        >
+          <Pressable style={styles.modalOverlay} onPress={() => setSelectedDetailItem(null)}>
+            <Pressable
+              style={[
+                styles.detailModalCard,
+                { backgroundColor: themeColors.surface.card },
+              ]}
+              onPress={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <View style={styles.detailHeaderRow}>
+                <View style={{ flex: 1 }}>
+                  <Typography variant="h3" color={colors.brand.navy} style={{ fontWeight: '700' }}>
+                    {selectedDetailItem.isGroup === 1
+                      ? (language === 'en' ? 'Package Container Details' : 'Detail Paket Kontainer')
+                      : t.destDetail.itemDetailTitle}
+                  </Typography>
+                </View>
+                <Pressable onPress={() => setSelectedDetailItem(null)} hitSlop={8}>
+                  <Ionicons name="close" size={22} color={colors.text.muted} />
+                </Pressable>
+              </View>
+
+              <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
+                {/* Photo or Icon */}
+                <View style={styles.detailImageContainer}>
+                  {getPackingItemImage(selectedDetailItem) ? (
+                    <Image
+                      source={{ uri: getPackingItemImage(selectedDetailItem)! }}
+                      style={styles.detailItemImage}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View
+                      style={[
+                        styles.detailIconCircle,
+                        {
+                          backgroundColor: selectedDetailItem.isGroup === 1
+                            ? (isDarkMode ? 'rgba(56, 189, 248, 0.2)' : '#E0F2FE')
+                            : isDropOffItem(selectedDetailItem)
+                            ? (isDarkMode ? '#451A03' : '#FEF3C7')
+                            : (isDarkMode ? colors.surface.muted : '#F0F4F8'),
+                        },
+                      ]}
+                    >
+                      <Ionicons
+                        name={
+                          selectedDetailItem.isGroup === 1
+                            ? 'cube'
+                            : isDropOffItem(selectedDetailItem)
+                            ? 'gift'
+                            : 'cube-outline'
+                        }
+                        size={36}
+                        color={
+                          selectedDetailItem.isGroup === 1
+                            ? colors.brand.blue
+                            : isDropOffItem(selectedDetailItem)
+                            ? '#EA580C'
+                            : colors.brand.navy
+                        }
+                      />
+                    </View>
+                  )}
+                </View>
+
+                {/* Name */}
+                <Typography variant="h2" color={colors.brand.navy} style={styles.detailItemName}>
+                  {selectedDetailItem.customName}
+                </Typography>
+
+                {/* Badges */}
+                <View style={styles.detailBadgesRow}>
+                  {selectedDetailItem.isGroup === 1 ? (
+                    <Badge label="PAKET CONTAINER" variant="accent" size="md" />
+                  ) : (
+                    <Badge
+                      label={
+                        selectedDetailItem.state === 'packed'
+                          ? (language === 'en' ? 'Packed in Bag' : 'Sudah Dalam Tas')
+                          : selectedDetailItem.state === 'used'
+                          ? (isDropOffItem(selectedDetailItem) ? 'Dropped Off ✓' : (language === 'en' ? 'Used' : 'Terpakai'))
+                          : selectedDetailItem.state === 'missing'
+                          ? (language === 'en' ? 'Missing' : 'Hilang')
+                          : (language === 'en' ? 'Need Packing' : 'Perlu Dikemas')
+                      }
+                      variant={
+                        selectedDetailItem.state === 'packed'
+                          ? 'accent'
+                          : selectedDetailItem.state === 'used'
+                          ? 'neutral'
+                          : selectedDetailItem.state === 'missing'
+                          ? 'error'
+                          : 'neutral'
+                      }
+                      size="md"
+                    />
+                  )}
+
+                  <Badge label={selectedDetailItem.category} variant="neutral" size="md" />
+                  <Badge label={`${language === 'en' ? 'Qty' : 'Jumlah'}: ${selectedDetailItem.quantity}`} variant="neutral" size="md" />
+
+                  {isDropOffItem(selectedDetailItem) && (
+                    <Badge label="DROP OFF" variant="accent" size="md" />
+                  )}
+                </View>
+
+                {/* Destination info */}
+                {selectedDetailItem.plannedDestinationId && (
+                  <View
+                    style={[
+                      styles.detailMappingBox,
+                      { backgroundColor: isDarkMode ? colors.surface.muted : '#F8FAFC', borderColor: colors.border.default },
+                    ]}
+                  >
+                    <Typography variant="caption" color={colors.text.muted} style={{ fontWeight: '700', marginBottom: 4 }}>
+                      {language === 'en' ? 'Planned Destination / Stop:' : 'Destinasi / Titik Penggunaan:'}
+                    </Typography>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Ionicons name="location" size={16} color={colors.brand.coral} style={{ marginRight: 6 }} />
+                      <Typography variant="body" color={colors.brand.navy} style={{ fontWeight: '600' }}>
+                        {destinations.find((d) => d.id === selectedDetailItem.plannedDestinationId)?.name || 'Unknown Stop'}
+                      </Typography>
+                    </View>
+                  </View>
+                )}
+
+                {/* Group / Container Mapping */}
+                <View
+                  style={[
+                    styles.detailMappingBox,
+                    { backgroundColor: isDarkMode ? colors.surface.muted : '#F8FAFC', borderColor: colors.border.default },
+                  ]}
+                >
+                  <Typography variant="caption" color={colors.text.muted} style={{ fontWeight: '700', marginBottom: 4 }}>
+                    {language === 'en' ? 'Container / Package Mapping:' : 'Pemetaan Kontainer / Paket:'}
+                  </Typography>
+
+                  {selectedDetailItem.isGroup === 1 ? (
+                    <View>
+                      <Typography variant="body" color={colors.brand.navy} style={{ fontWeight: '600' }}>
+                        {items.filter((it) => it.parentId === selectedDetailItem.id).length}{' '}
+                        {language === 'en' ? 'items bundled in this trip:' : 'barang dipaketkan di trip ini:'}
+                      </Typography>
+                      <View style={{ marginTop: 6, gap: 4 }}>
+                        {items
+                          .filter((it) => it.parentId === selectedDetailItem.id)
+                          .map((ch) => (
+                            <View key={ch.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 4 }}>
+                              <Ionicons name="return-down-forward" size={14} color={colors.brand.blue} />
+                              <Typography variant="caption" color={colors.text.primary} style={{ marginLeft: 6, fontWeight: '600', flex: 1 }}>
+                                {ch.customName}
+                              </Typography>
+                              <Badge
+                                label={ch.state === 'packed' ? '✓' : '—'}
+                                variant={ch.state === 'packed' ? 'accent' : 'neutral'}
+                                size="sm"
+                              />
+                            </View>
+                          ))}
+                      </View>
+                    </View>
+                  ) : (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                      <View style={{ flex: 1 }}>
+                        {selectedDetailItem.parentId ? (
+                          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            <Ionicons name="cube" size={15} color={colors.brand.blue} style={{ marginRight: 5 }} />
+                            <Typography variant="body" color={colors.brand.navy} style={{ fontWeight: '600' }}>
+                              {items.find((it) => it.id === selectedDetailItem.parentId)?.customName || 'Unknown Group'}
+                            </Typography>
+                          </View>
+                        ) : (
+                          <Typography variant="body" color={colors.text.muted}>
+                            {language === 'en' ? 'No container (Standalone item)' : 'Tanpa kontainer (Barang mandiri)'}
+                          </Typography>
+                        )}
+                      </View>
+
+                      <Button
+                        label={language === 'en' ? 'Move Group' : 'Pindah Grup'}
+                        size="sm"
+                        variant="secondary"
+                        onPress={() => {
+                          const it = selectedDetailItem;
+                          setSelectedDetailItem(null);
+                          setItemToMoveGroup(it);
+                        }}
+                      />
+                    </View>
+                  )}
+                </View>
+
+                {/* Notes */}
+                {selectedDetailItem.notes && (
+                  <View
+                    style={[
+                      styles.detailNotesBox,
+                      { backgroundColor: isDarkMode ? colors.surface.muted : '#F8FAFC', borderColor: colors.border.default },
+                    ]}
+                  >
+                    <Typography variant="caption" color={colors.text.muted} style={{ fontWeight: '700', marginBottom: 4 }}>
+                      {language === 'en' ? 'Notes:' : 'Catatan Khusus:'}
+                    </Typography>
+                    <Typography variant="body" color={colors.text.primary} style={{ fontSize: 13, lineHeight: 19 }}>
+                      {selectedDetailItem.notes}
+                    </Typography>
+                  </View>
+                )}
+              </ScrollView>
+
+              {/* Action Buttons */}
+              <View style={styles.detailActionButtonsRow}>
+                {selectedDetailItem.isGroup !== 1 && (
+                  <Button
+                    label={
+                      ['packed', 'available', 'returned', 'used'].includes(selectedDetailItem.state)
+                        ? (language === 'en' ? 'Take Out of Bag' : 'Keluarkan dari Tas')
+                        : (language === 'en' ? 'Pack into Bag' : 'Kemas Masuk ke Tas')
+                    }
+                    variant={['packed', 'available', 'returned', 'used'].includes(selectedDetailItem.state) ? 'secondary' : 'accent'}
+                    size="md"
+                    onPress={() => {
+                      const it = selectedDetailItem;
+                      setSelectedDetailItem(null);
+                      handleTogglePack(it);
+                    }}
+                  />
+                )}
+
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <Button
+                    label={language === 'en' ? 'Delete' : 'Hapus'}
+                    variant="destructive"
+                    size="sm"
+                    onPress={() => {
+                      const it = selectedDetailItem;
+                      setSelectedDetailItem(null);
+                      handleDeleteTripItem(it);
+                    }}
+                    style={{ flex: 1 }}
+                  />
+                  <Button
+                    label={t.destDetail.closeMenu}
+                    variant="secondary"
+                    size="sm"
+                    onPress={() => setSelectedDetailItem(null)}
+                    style={{ flex: 1 }}
+                  />
+                </View>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
+
+      {/* MODAL: Move Item to Another Group Container */}
+      {itemToMoveGroup && (
+        <Modal
+          transparent
+          animationType="fade"
+          visible={!!itemToMoveGroup}
+          onRequestClose={() => setItemToMoveGroup(null)}
+        >
+          <Pressable style={styles.modalOverlay} onPress={() => setItemToMoveGroup(null)}>
+            <Pressable
+              style={[
+                styles.modalCard,
+                { backgroundColor: themeColors.surface.card, maxHeight: '80%' },
+              ]}
+              onPress={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <View style={{ flex: 1 }}>
+                  <Typography variant="h3" color={colors.brand.navy}>
+                    {t.destDetail.selectGroupModalTitle}
+                  </Typography>
+                  <Typography variant="caption" color={colors.text.muted} style={{ marginTop: 2 }}>
+                    {t.destDetail.selectGroupModalSubtitle}
+                  </Typography>
+                </View>
+                <Pressable onPress={() => setItemToMoveGroup(null)} hitSlop={8}>
+                  <Ionicons name="close" size={22} color={colors.text.muted} />
+                </Pressable>
+              </View>
+
+              {/* Scroll list of groups */}
+              <ScrollView style={{ maxHeight: 350 }}>
+                {/* Option 1: Standalone / No Group */}
+                <Pressable
+                  style={[
+                    styles.groupOptionRow,
+                    {
+                      backgroundColor: !itemToMoveGroup.parentId
+                        ? (isDarkMode ? 'rgba(56, 189, 248, 0.15)' : '#E0F2FE')
+                        : (isDarkMode ? themeColors.surface.page : '#F8FAFC'),
+                      borderColor: !itemToMoveGroup.parentId ? colors.brand.blue : colors.border.muted,
+                    },
+                  ]}
+                  onPress={async () => {
+                    const targetItem = itemToMoveGroup;
+                    setItemToMoveGroup(null);
+                    try {
+                      await packingRepository.updateItemParent(targetItem.id, null);
+                      await loadTripData();
+                      if (selectedDetailItem?.id === targetItem.id) {
+                        setSelectedDetailItem({ ...targetItem, parentId: null });
+                      }
+                    } catch {
+                      Alert.alert('Error', 'Gagal memindahkan barang.');
+                    }
+                  }}
+                >
+                  <Ionicons name="cube-outline" size={20} color={!itemToMoveGroup.parentId ? colors.brand.blue : colors.text.muted} />
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Typography variant="body" color={colors.brand.navy} style={{ fontWeight: '600' }}>
+                      {t.destDetail.noGroupTrip}
+                    </Typography>
+                    <Typography variant="caption" color={colors.text.muted}>
+                      {language === 'en' ? 'Keep item standalone without any container' : 'Barang berdiri sendiri tanpa masuk kontainer paket'}
+                    </Typography>
+                  </View>
+                  {!itemToMoveGroup.parentId && (
+                    <Ionicons name="checkmark-circle" size={20} color={colors.brand.blue} />
+                  )}
+                </Pressable>
+
+                {/* Group Options */}
+                {items
+                  .filter((it) => it.isGroup === 1 && it.id !== itemToMoveGroup.id)
+                  .map((grp) => {
+                    const isSelected = itemToMoveGroup.parentId === grp.id;
+                    const childCount = items.filter((it) => it.parentId === grp.id).length;
+                    return (
+                      <Pressable
+                        key={grp.id}
+                        style={[
+                          styles.groupOptionRow,
+                          {
+                            backgroundColor: isSelected
+                              ? (isDarkMode ? 'rgba(56, 189, 248, 0.15)' : '#E0F2FE')
+                              : (isDarkMode ? themeColors.surface.page : '#F8FAFC'),
+                            borderColor: isSelected ? colors.brand.blue : colors.border.muted,
+                          },
+                        ]}
+                        onPress={async () => {
+                          const targetItem = itemToMoveGroup;
+                          setItemToMoveGroup(null);
+                          try {
+                            await packingRepository.updateItemParent(targetItem.id, grp.id);
+                            await loadTripData();
+                            if (selectedDetailItem?.id === targetItem.id) {
+                              setSelectedDetailItem({ ...targetItem, parentId: grp.id });
+                            }
+                          } catch {
+                            Alert.alert('Error', 'Gagal memindahkan barang.');
+                          }
+                        }}
+                      >
+                        <Ionicons name="cube" size={20} color={isSelected ? colors.brand.blue : colors.brand.coral} />
+                        <View style={{ flex: 1, marginLeft: 10 }}>
+                          <Typography variant="body" color={colors.brand.navy} style={{ fontWeight: '600' }}>
+                            {grp.customName}
+                          </Typography>
+                          <Typography variant="caption" color={colors.text.muted}>
+                            {childCount} {language === 'en' ? 'items bundled' : 'barang di dalamnya'}
+                          </Typography>
+                        </View>
+                        {isSelected && (
+                          <Ionicons name="checkmark-circle" size={20} color={colors.brand.blue} />
+                        )}
+                      </Pressable>
+                    );
+                  })}
+              </ScrollView>
+
+              <Button
+                variant="secondary"
+                label={t.destDetail.closeMenu}
+                onPress={() => setItemToMoveGroup(null)}
+                style={{ marginTop: 12 }}
               />
             </Pressable>
           </Pressable>
@@ -2687,5 +3163,82 @@ const styles = StyleSheet.create({
     marginLeft: spacing[2],
     marginRight: 2,
     marginBottom: 16,
+  },
+  groupCollapseBtn: {
+    padding: 6,
+    marginRight: 2,
+  },
+  detailModalCard: {
+    width: '100%',
+    borderRadius: radius.xl,
+    padding: spacing[5],
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    maxHeight: '85%',
+  },
+  detailHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing[3],
+  },
+  detailImageContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing[3],
+  },
+  detailItemImage: {
+    width: '100%',
+    height: 180,
+    borderRadius: radius.lg,
+    backgroundColor: '#E2E8F0',
+  },
+  detailIconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailItemName: {
+    fontSize: 20,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: spacing[2],
+  },
+  detailBadgesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: spacing[3],
+  },
+  detailMappingBox: {
+    borderWidth: 1,
+    borderRadius: radius.md,
+    padding: spacing[3],
+    marginBottom: spacing[2],
+  },
+  detailNotesBox: {
+    borderWidth: 1,
+    borderRadius: radius.md,
+    padding: spacing[3],
+    marginBottom: spacing[2],
+  },
+  detailActionButtonsRow: {
+    gap: 8,
+    marginTop: spacing[3],
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#E2E8F0',
+    paddingTop: spacing[3],
+  },
+  groupOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    marginBottom: 8,
   },
 });

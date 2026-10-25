@@ -1219,20 +1219,6 @@ export default function TripDetailScreen() {
                         </Typography>
                       </Pressable>
                     </View>
-
-                    {/* Immediate Save Button right under captured photo */}
-                    <Button
-                      label={
-                        isSavingMoment
-                          ? (language === 'en' ? 'Saving Moment…' : 'Menyimpan Momen…')
-                          : (language === 'en' ? '💾 Save Moment' : '💾 Simpan Momen')
-                      }
-                      variant="primary"
-                      size="md"
-                      onPress={handleAddMoment}
-                      disabled={isSavingMoment}
-                      style={{ marginTop: spacing[3] }}
-                    />
                   </View>
                 ) : (
                   <View style={styles.photoPickerRow}>
@@ -1298,18 +1284,6 @@ export default function TripDetailScreen() {
                     )}
                   </Pressable>
                 </View>
-
-                {/* Prominent Save Button - Always Visible! */}
-                <Button
-                  label={isSavingMoment
-                    ? (language === 'en' ? 'Saving Moment…' : 'Menyimpan Momen…')
-                    : (language === 'en' ? '💾 Save Moment' : '💾 Simpan Momen')}
-                  variant="primary"
-                  size="md"
-                  onPress={handleAddMoment}
-                  disabled={isSavingMoment}
-                  style={styles.saveMomentBtn}
-                />
               </View>
 
               {/* Moments List */}
@@ -1376,14 +1350,27 @@ export default function TripDetailScreen() {
         ) : null}
 
       </ScrollView>
-      <SafeAreaView edges={['bottom']} style={[styles.endTripFooter, { backgroundColor: themeColors.surface.page, borderTopColor: themeColors.border.default }]}>
-        {activeTab === 'moments' ? (
+      {activeTab === 'roadmap' ? (
+        <SafeAreaView edges={['bottom']} style={[styles.endTripFooter, { backgroundColor: themeColors.surface.page, borderTopColor: themeColors.border.default }]}>
+          {isCompleted && (
+            <Typography variant="caption" color={themeColors.text.muted} style={styles.closedTripHint}>
+              {language === 'en' ? 'This trip is already closed.' : 'Perjalanan ini sudah ditutup.'}
+            </Typography>
+          )}
+          <Button
+            label={language === 'en' ? 'End Trip' : 'Akhiri Perjalanan'}
+            variant="destructive"
+            size="md"
+            onPress={handleCloseTrip}
+            disabled={isCompleted}
+          />
+        </SafeAreaView>
+      ) : activeTab === 'moments' ? (
+        <SafeAreaView edges={['bottom']} style={[styles.endTripFooter, { backgroundColor: themeColors.surface.page, borderTopColor: themeColors.border.default }]}>
           <Button
             label={
               isSavingMoment
                 ? (language === 'en' ? 'Saving Moment…' : 'Menyimpan Momen…')
-                : selectedPhotoUri
-                ? (language === 'en' ? '💾 Save Moment' : '💾 Simpan Momen')
                 : (language === 'en' ? '💾 Save Moment' : '💾 Simpan Momen')
             }
             variant="primary"
@@ -1391,23 +1378,8 @@ export default function TripDetailScreen() {
             onPress={handleAddMoment}
             disabled={isSavingMoment}
           />
-        ) : (
-          <>
-            {isCompleted && (
-              <Typography variant="caption" color={themeColors.text.muted} style={styles.closedTripHint}>
-                {language === 'en' ? 'This trip is already closed.' : 'Perjalanan ini sudah ditutup.'}
-              </Typography>
-            )}
-            <Button
-              label={language === 'en' ? 'End Trip' : 'Akhiri Perjalanan'}
-              variant="destructive"
-              size="md"
-              onPress={handleCloseTrip}
-              disabled={isCompleted}
-            />
-          </>
-        )}
-      </SafeAreaView>
+        </SafeAreaView>
+      ) : null}
       {packingFlightOverlay}
 
       <Modal

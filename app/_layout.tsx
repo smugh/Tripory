@@ -224,7 +224,7 @@ export default function RootLayout() {
 
           <View style={styles.splashFooter}>
             <Typography variant="caption" color={themeColors.text.muted}>
-              Tripory v1.0.2 • Offline-First Travel Companion
+              Tripory v1.0.3 • Offline-First Travel Companion
             </Typography>
           </View>
         </Animated.View>

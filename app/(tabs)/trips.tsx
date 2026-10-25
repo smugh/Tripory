@@ -1,9 +1,9 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { View, StyleSheet, FlatList, Pressable, Alert, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { spacing, radius, fontFamily, useThemeColors } from '@/core/theme';
-import { Typography, Badge, EmptyState, ScreenContainer } from '@/components/ui';
+import { Typography, EmptyState, ScreenContainer } from '@/components/ui';
 import { useTrips } from '@/hooks/useTrips';
 import { formatDateRange } from '@/core/utils';
 import { TripRecord } from '@/db/schema/trips';
@@ -11,7 +11,7 @@ import { useI18n } from '@/core/i18n';
 import { useUIStore } from '@/stores/ui-store';
 import { tripRepository } from '@/db/repositories/trip.repository';
 
-type FilterType = 'all' | 'ongoing' | 'preparing' | 'completed';
+type FilterType = 'active' | 'done';
 type ViewMode = 'grid' | 'list';
 
 export default function TripsScreen() {
@@ -20,28 +20,19 @@ export default function TripsScreen() {
   const isDarkMode = useUIStore((state) => state.isDarkMode);
   const { t, language } = useI18n();
   const { planningTrips: trips, isLoading, refreshTrips } = useTrips(true);
-  const [filter, setFilter] = useState<FilterType>('all');
+  const [filter, setFilter] = useState<FilterType>('active');
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [removingId, setRemovingId] = useState<string | null>(null);
   const text = (en: string, id: string) => language === 'en' ? en : id;
   const filteredTrips = trips.filter((trip) => {
-    if (filter === 'ongoing') return trip.status === 'ongoing';
-    if (filter === 'preparing') return ['preparing', 'ready', 'draft'].includes(trip.status);
-    if (filter === 'completed') return trip.status === 'completed';
+    if (filter === 'active') return trip.status !== 'completed';
+    if (filter === 'done') return trip.status === 'completed';
     return true;
   });
   const filterTabs = [
-    { key: 'all', label: t.tripsList.filterAll },
-    { key: 'ongoing', label: t.tripsList.filterActive },
-    { key: 'preparing', label: t.tripsList.filterPreparing },
-    { key: 'completed', label: t.tripsList.filterDone },
+    { key: 'active', label: t.tripsList.filterActive },
+    { key: 'done', label: t.tripsList.filterDone },
   ] as const;
-  const statusLabel = (trip: TripRecord) => trip.status === 'ongoing' ? t.tripsList.statusOngoing
-    : trip.status === 'completed' ? t.tripsList.statusDone
-    : trip.status === 'ready' ? t.tripsList.statusReady : t.tripsList.statusPlanning;
-  const statusVariant = (trip: TripRecord) => trip.status === 'ongoing' ? 'accent' as const
-    : trip.status === 'completed' ? 'neutral' as const
-    : trip.status === 'ready' ? 'success' as const : 'warning' as const;
   const openTrip = (trip: TripRecord) => router.push(`/trip/${trip.id}`);
   const removePlan = (trip: TripRecord) => Alert.alert(
     text('Delete from planning?', 'Hapus dari planning?'),
@@ -69,15 +60,11 @@ export default function TripsScreen() {
           <View style={styles.listTitleRow}>
             {completed && <Ionicons name="lock-closed-outline" size={13} color={colors.text.muted} />}
             <Typography variant="body" numberOfLines={1} style={styles.listTitle}>{item.name}</Typography>
+            {!!item.hasMissingItems && <Ionicons name="alert-circle-outline" size={14} color={colors.status.error} />}
           </View>
           <Typography variant="caption" color={colors.text.secondary} numberOfLines={1} style={styles.secondaryText}>
             {item.destination} · {formatDateRange(item.startDate, item.endDate, language)}
           </Typography>
-          <View style={styles.listStatusRow}>
-            <View style={[styles.statusDot, { backgroundColor: completed ? colors.text.muted : item.status === 'ready' ? colors.status.success : item.status === 'ongoing' ? colors.brand.coral : colors.status.warning }]} />
-            <Typography variant="caption" color={colors.text.secondary} style={styles.statusText}>{statusLabel(item)}{completed ? text(' · Read only', ' · Hanya baca') : ''}</Typography>
-            {!!item.hasMissingItems && <Ionicons name="alert-circle-outline" size={13} color={colors.status.error} />}
-          </View>
         </Pressable>
         {deleteButton(item)}
         <Pressable accessibilityRole="button" accessibilityLabel={`${text('Open trip', 'Buka trip')}: ${item.name}`} onPress={() => openTrip(item)} style={styles.openButton}>
@@ -89,11 +76,15 @@ export default function TripsScreen() {
       <View style={[styles.gridCard, { backgroundColor: colors.surface.card, borderColor: colors.border.default }]}>
         <Pressable accessibilityRole="button" onPress={() => openTrip(item)} style={({ pressed }) => [styles.gridMain, pressed && { opacity: 0.65 }]}>
           <View style={[styles.gridCover, { backgroundColor: isDarkMode ? colors.surface.muted : '#EDF5FC' }]}>
-            {item.coverPhotoPath ? <Image source={{ uri: item.coverPhotoPath }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : <Ionicons name="map-outline" size={28} color={colors.brand.blue} />}
-            {completed && <View style={styles.lockBadge}><Ionicons name="lock-closed" size={12} color={colors.brand.navy} /></View>}
+            {item.coverPhotoPath ? <Image source={{ uri: item.coverPhotoPath }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : <Ionicons name="map-outline" size={18} color={colors.brand.blue} />}
+            {completed && <View style={styles.lockBadge}><Ionicons name="lock-closed" size={11} color={colors.brand.navy} /></View>}
+            {!!item.hasMissingItems && (
+              <View style={styles.missingBadgeIcon}>
+                <Ionicons name="alert-circle" size={13} color={colors.status.error} />
+              </View>
+            )}
           </View>
           <View style={styles.gridInfo}>
-            <Badge label={statusLabel(item)} variant={statusVariant(item)} size="sm" dot />
             <Typography variant="body" numberOfLines={2} style={styles.gridTitle}>{item.name}</Typography>
             <View style={styles.locationRow}><Ionicons name="location-outline" size={12} color={colors.brand.coral} /><Typography variant="caption" color={colors.text.secondary} numberOfLines={1} style={[styles.secondaryText, { flex: 1 }]}>{item.destination}</Typography></View>
             <Typography variant="caption" color={colors.text.muted} style={styles.gridDate}>{formatDateRange(item.startDate, item.endDate, language)}</Typography>
@@ -143,16 +134,14 @@ const styles = StyleSheet.create({
   listTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   listTitle: { flex: 1, fontFamily: fontFamily.semiBold, fontWeight: '600', fontSize: 14, lineHeight: 20 },
   secondaryText: { fontFamily: fontFamily.regular, fontWeight: '400', fontSize: 11, lineHeight: 16 },
-  listStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  statusDot: { width: 5, height: 5, borderRadius: 3 },
-  statusText: { fontFamily: fontFamily.regular, fontWeight: '400', fontSize: 10, lineHeight: 14 },
   deleteButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   openButton: { width: 24, height: 40, alignItems: 'center', justifyContent: 'center' },
   gridColumns: { gap: 12 },
   gridCard: { flex: 1, maxWidth: '48.5%', borderWidth: 1, borderRadius: 16, overflow: 'hidden', marginBottom: 12 },
   gridMain: { flex: 1 },
-  gridCover: { height: 76, alignItems: 'center', justifyContent: 'center' },
-  lockBadge: { position: 'absolute', right: 8, top: 8, padding: 5, backgroundColor: '#FFFFFF', borderRadius: 12 },
+  gridCover: { height: 44, alignItems: 'center', justifyContent: 'center' },
+  lockBadge: { position: 'absolute', right: 8, top: 6, padding: 4, backgroundColor: '#FFFFFF', borderRadius: 10 },
+  missingBadgeIcon: { position: 'absolute', left: 8, top: 6, padding: 3, backgroundColor: '#FFFFFF', borderRadius: 10 },
   gridInfo: { padding: 10, gap: 6 },
   gridTitle: { fontFamily: fontFamily.semiBold, fontWeight: '600', fontSize: 13, lineHeight: 18, minHeight: 36 },
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },

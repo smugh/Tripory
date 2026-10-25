@@ -344,7 +344,7 @@ export default function HomeScreen() {
                     accessibilityRole="button"
                     accessibilityLabel={pTrip.name}
                   >
-                    {/* Header: Nama Perjalanan & Badge Status */}
+                    {/* Header: Nama Perjalanan & Navigasi */}
                     <View style={styles.planningCardTop}>
                       <View style={styles.planningTitleWrap}>
                         <Typography
@@ -356,12 +356,7 @@ export default function HomeScreen() {
                           {pTrip.name}
                         </Typography>
                       </View>
-                      <Badge
-                        label={stage.label}
-                        variant={stage.badgeVariant}
-                        size="sm"
-                        dot
-                      />
+                      <Ionicons name="chevron-forward" size={18} color={colors.text.muted} />
                     </View>
 
                     {/* Meta: Tujuan & Tanggal Rencana */}
@@ -390,26 +385,6 @@ export default function HomeScreen() {
                           {formatDateRange(pTrip.startDate, pTrip.endDate, language)}
                         </Typography>
                       </View>
-                    </View>
-
-                    {/* Tahap Sekarang: Info & Slim Progress Bar */}
-                    <View style={styles.planningProgressRow}>
-                      <Typography variant="caption" color={colors.text.secondary} style={styles.progressStepText}>
-                        {format(t.home.stagePrefix, { step: stage.step, label: stage.label })}
-                      </Typography>
-                      <Ionicons name="chevron-forward" size={16} color={colors.text.muted} />
-                    </View>
-
-                    <View style={[styles.slimTrack, { backgroundColor: isDarkMode ? colors.surface.muted : '#F1F5F9' }]}>
-                      <View
-                        style={[
-                          styles.slimFill,
-                          {
-                            width: stage.progress as any,
-                            backgroundColor: stage.color,
-                          },
-                        ]}
-                      />
                     </View>
                   </Pressable>
                 );
@@ -612,12 +587,6 @@ export default function HomeScreen() {
                         >
                           {customMap.get(itemTrip.id)?.customTitle || itemTrip.name}
                         </Typography>
-                        <Badge
-                          label={stage.label}
-                          variant={stage.badgeVariant}
-                          size="sm"
-                          dot
-                        />
                       </View>
 
                       <View style={styles.tripListMetaRow}>
@@ -694,16 +663,6 @@ export default function HomeScreen() {
                           </Typography>
                         </View>
                       )}
-
-                      {/* Top Right Floating Badge */}
-                      <View style={styles.tripGridStatusPill}>
-                        <Badge
-                          label={stage.label}
-                          variant={stage.badgeVariant}
-                          size="sm"
-                          dot
-                        />
-                      </View>
 
                       {/* Bottom Left Floating Duration Pill */}
                       <View style={styles.tripGridDurationPill}>

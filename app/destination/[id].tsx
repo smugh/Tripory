@@ -381,7 +381,100 @@ export default function DestinationDetailScreen() {
           setDestination((previous) => previous ? { ...previous, plannedDate, plannedTime } : previous);
         }} />
 
-        {/* Section 1: Assigned Items / Inventory for this Destination */}
+        {/* Section 1: Local To-Do Checklist */}
+        <Card style={styles.sectionCard}>
+          <View style={styles.sectionTitleRow}>
+            <View style={styles.sectionTitleLeft}>
+              <Ionicons name="checkbox-outline" size={20} color={colors.brand.blue} />
+              <Typography variant="h3" color={colors.text.primary} style={styles.sectionHeading}>
+                {t.destDetail.todoSectionTitle}
+              </Typography>
+            </View>
+            <Badge
+              label={`${todos.filter((x) => x.completed).length}/${todos.length}`}
+              variant="neutral"
+              size="sm"
+            />
+          </View>
+
+          {/* Add Todo Input Row */}
+          <View style={styles.addTodoRow}>
+            <TextInput
+              style={[
+                styles.todoInput,
+                {
+                  backgroundColor: colors.surface.page,
+                  borderColor: colors.border.default,
+                  color: colors.text.primary,
+                },
+              ]}
+              placeholder={t.destDetail.todoPlaceholder}
+              placeholderTextColor={colors.text.muted}
+              value={newTodoText}
+              onChangeText={setNewTodoText}
+              onSubmitEditing={handleAddTodo}
+            />
+            <Pressable
+              style={[
+                styles.addTodoBtn,
+                { backgroundColor: newTodoText.trim() ? colors.brand.coral : colors.border.strong },
+              ]}
+              onPress={handleAddTodo}
+              disabled={!newTodoText.trim()}
+            >
+              <Ionicons name="add" size={22} color="#FFFFFF" />
+            </Pressable>
+          </View>
+
+          {/* Todos List */}
+          {todos.length > 0 ? (
+            <View style={styles.todosList}>
+              {todos.map((todo) => (
+                <View
+                  key={todo.id}
+                  style={[
+                    styles.todoItemRow,
+                    { borderBottomColor: colors.border.muted },
+                  ]}
+                >
+                  <Pressable
+                    style={styles.todoCheckWrap}
+                    onPress={() => handleToggleTodo(todo.id)}
+                  >
+                    <Ionicons
+                      name={todo.completed ? 'checkbox' : 'square-outline'}
+                      size={22}
+                      color={todo.completed ? colors.status.success : colors.text.muted}
+                    />
+                    <Typography
+                      variant="body"
+                      color={todo.completed ? colors.text.muted : colors.text.primary}
+                      style={[
+                        styles.todoText,
+                        todo.completed && styles.todoTextDone,
+                      ]}
+                    >
+                      {todo.text}
+                    </Typography>
+                  </Pressable>
+
+                  <Pressable
+                    style={styles.deleteTodoBtn}
+                    onPress={() => handleDeleteTodo(todo.id)}
+                  >
+                    <Ionicons name="trash-outline" size={17} color={colors.status.error} />
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <Typography variant="caption" color={colors.text.muted} style={styles.emptyTodoText}>
+              {t.destDetail.noTodos}
+            </Typography>
+          )}
+        </Card>
+
+        {/* Section 2: Assigned Items / Inventory for this Destination */}
         <Card style={styles.sectionCard}>
           <View style={styles.sectionTitleRow}>
             <View style={styles.sectionTitleLeft}>
@@ -484,99 +577,6 @@ export default function DestinationDetailScreen() {
             onPress={() => setIsAssignModalOpen(true)}
             style={{ marginTop: 12 }}
           />
-        </Card>
-
-        {/* Section 2: Local To-Do Checklist */}
-        <Card style={styles.sectionCard}>
-          <View style={styles.sectionTitleRow}>
-            <View style={styles.sectionTitleLeft}>
-              <Ionicons name="checkbox-outline" size={20} color={colors.brand.blue} />
-              <Typography variant="h3" color={colors.text.primary} style={styles.sectionHeading}>
-                {t.destDetail.todoSectionTitle}
-              </Typography>
-            </View>
-            <Badge
-              label={`${todos.filter((x) => x.completed).length}/${todos.length}`}
-              variant="neutral"
-              size="sm"
-            />
-          </View>
-
-          {/* Add Todo Input Row */}
-          <View style={styles.addTodoRow}>
-            <TextInput
-              style={[
-                styles.todoInput,
-                {
-                  backgroundColor: colors.surface.page,
-                  borderColor: colors.border.default,
-                  color: colors.text.primary,
-                },
-              ]}
-              placeholder={t.destDetail.todoPlaceholder}
-              placeholderTextColor={colors.text.muted}
-              value={newTodoText}
-              onChangeText={setNewTodoText}
-              onSubmitEditing={handleAddTodo}
-            />
-            <Pressable
-              style={[
-                styles.addTodoBtn,
-                { backgroundColor: newTodoText.trim() ? colors.brand.coral : colors.border.strong },
-              ]}
-              onPress={handleAddTodo}
-              disabled={!newTodoText.trim()}
-            >
-              <Ionicons name="add" size={22} color="#FFFFFF" />
-            </Pressable>
-          </View>
-
-          {/* Todos List */}
-          {todos.length > 0 ? (
-            <View style={styles.todosList}>
-              {todos.map((todo) => (
-                <View
-                  key={todo.id}
-                  style={[
-                    styles.todoItemRow,
-                    { borderBottomColor: colors.border.muted },
-                  ]}
-                >
-                  <Pressable
-                    style={styles.todoCheckWrap}
-                    onPress={() => handleToggleTodo(todo.id)}
-                  >
-                    <Ionicons
-                      name={todo.completed ? 'checkbox' : 'square-outline'}
-                      size={22}
-                      color={todo.completed ? colors.status.success : colors.text.muted}
-                    />
-                    <Typography
-                      variant="body"
-                      color={todo.completed ? colors.text.muted : colors.text.primary}
-                      style={[
-                        styles.todoText,
-                        todo.completed && styles.todoTextDone,
-                      ]}
-                    >
-                      {todo.text}
-                    </Typography>
-                  </Pressable>
-
-                  <Pressable
-                    style={styles.deleteTodoBtn}
-                    onPress={() => handleDeleteTodo(todo.id)}
-                  >
-                    <Ionicons name="trash-outline" size={17} color={colors.status.error} />
-                  </Pressable>
-                </View>
-              ))}
-            </View>
-          ) : (
-            <Typography variant="caption" color={colors.text.muted} style={styles.emptyTodoText}>
-              {t.destDetail.noTodos}
-            </Typography>
-          )}
         </Card>
 
         {/* Section 3: Destination Notes */}
@@ -878,6 +878,70 @@ export default function DestinationDetailScreen() {
                       {activeItemMenu.state === 'used'
                         ? t.destDetail.actionResetUsedDesc
                         : t.destDetail.actionMarkUsedDesc}
+                    </Typography>
+                  </View>
+                </Pressable>
+
+                {/* Opsi Item Hilang / Ditemukan */}
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.sheetActionItem,
+                    { backgroundColor: colors.surface.page },
+                    pressed && { opacity: 0.8 },
+                  ]}
+                  onPress={() => {
+                    const item = activeItemMenu;
+                    const isMissing = item.state === 'missing';
+                    handleToggleItemState(item, isMissing ? 'packed' : 'missing');
+                    setActiveItemMenu(null);
+                  }}
+                >
+                  <View
+                    style={[
+                      styles.actionIconBox,
+                      {
+                        backgroundColor:
+                          activeItemMenu.state === 'missing'
+                            ? `${colors.status.success}15`
+                            : 'rgba(239, 68, 68, 0.15)',
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name={
+                        activeItemMenu.state === 'missing'
+                          ? 'checkmark-circle-outline'
+                          : 'help-circle-outline'
+                      }
+                      size={20}
+                      color={
+                        activeItemMenu.state === 'missing'
+                          ? colors.status.success
+                          : colors.status.error
+                      }
+                    />
+                  </View>
+                  <View style={styles.actionTextBox}>
+                    <Typography
+                      variant="label"
+                      color={
+                        activeItemMenu.state === 'missing'
+                          ? colors.status.success
+                          : colors.status.error
+                      }
+                    >
+                      {activeItemMenu.state === 'missing'
+                        ? (language === 'en' ? 'Item Found (Restore)' : 'Barang Ditemukan (Batal Hilang)')
+                        : (language === 'en' ? 'Item Hilang' : 'Item Hilang')}
+                    </Typography>
+                    <Typography variant="caption" color={colors.text.muted} style={{ marginTop: 2 }}>
+                      {activeItemMenu.state === 'missing'
+                        ? (language === 'en'
+                            ? 'Restore item status back into bag'
+                            : 'Kembalikan status barang menjadi ada dalam tas')
+                        : (language === 'en'
+                            ? 'Mark this item as lost during the trip'
+                            : 'Catat barang ini sebagai hilang selama perjalanan')}
                     </Typography>
                   </View>
                 </Pressable>

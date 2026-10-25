@@ -1892,6 +1892,70 @@ export default function TripDetailScreen() {
                   </View>
                 </Pressable>
 
+                {/* Opsi Item Hilang / Ditemukan */}
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.sheetActionItem,
+                    { backgroundColor: colors.surface.page },
+                    pressed && { opacity: 0.8 },
+                  ]}
+                  onPress={() => {
+                    const item = activeItemMenu;
+                    const isMissing = item.state === 'missing';
+                    handleUpdateItemState(item, isMissing ? 'packed' : 'missing');
+                    setActiveItemMenu(null);
+                  }}
+                >
+                  <View
+                    style={[
+                      styles.actionIconBox,
+                      {
+                        backgroundColor:
+                          activeItemMenu.state === 'missing'
+                            ? `${colors.status.success}15`
+                            : 'rgba(239, 68, 68, 0.15)',
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name={
+                        activeItemMenu.state === 'missing'
+                          ? 'checkmark-circle-outline'
+                          : 'help-circle-outline'
+                      }
+                      size={20}
+                      color={
+                        activeItemMenu.state === 'missing'
+                          ? colors.status.success
+                          : colors.status.error
+                      }
+                    />
+                  </View>
+                  <View style={styles.actionTextBox}>
+                    <Typography
+                      variant="label"
+                      color={
+                        activeItemMenu.state === 'missing'
+                          ? colors.status.success
+                          : colors.status.error
+                      }
+                    >
+                      {activeItemMenu.state === 'missing'
+                        ? (language === 'en' ? 'Item Found (Restore)' : 'Barang Ditemukan (Batal Hilang)')
+                        : (language === 'en' ? 'Item Hilang' : 'Item Hilang')}
+                    </Typography>
+                    <Typography variant="caption" color={colors.text.muted} style={{ marginTop: 2 }}>
+                      {activeItemMenu.state === 'missing'
+                        ? (language === 'en'
+                            ? 'Restore item status back into bag'
+                            : 'Kembalikan status barang menjadi ada dalam tas')
+                        : (language === 'en'
+                            ? 'Mark this item as lost during the trip'
+                            : 'Catat barang ini sebagai hilang selama perjalanan')}
+                    </Typography>
+                  </View>
+                </Pressable>
+
                 {/* 3. Shift Destination / Map Stop */}
                 <Pressable
                   style={({ pressed }) => [

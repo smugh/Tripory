@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Modal, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, Modal, Pressable, StyleSheet, TextInput, View, KeyboardAvoidingView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Button, DatePickerModal, Typography } from '@/components/ui';
 import { useThemeColors } from '@/core/theme';
@@ -36,7 +36,10 @@ export function DestinationScheduleEditor({ visible, date, time, language, onSav
   };
   return <>
     <Modal visible={visible && !pickingDate} transparent animationType="fade" onRequestClose={() => { if (!saving) onClose(); }}>
-      <View style={styles.backdrop}>
+      <KeyboardAvoidingView
+        style={styles.backdrop}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
         <View style={[styles.card, { backgroundColor: colors.surface.card }]}>
           <Typography variant="h3">{text('Destination schedule', 'Jadwal destinasi')}</Typography>
           <Typography variant="label" style={styles.label}>{text('Date', 'Tanggal')}</Typography>
@@ -50,7 +53,7 @@ export function DestinationScheduleEditor({ visible, date, time, language, onSav
           <Button label={saving ? text('Saving…', 'Menyimpan…') : text('Save schedule', 'Simpan jadwal')} onPress={save} disabled={saving} style={styles.save} />
           <Button label={text('Cancel', 'Batal')} variant="secondary" onPress={onClose} disabled={saving} />
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
     <DatePickerModal visible={visible && pickingDate} value={draftDate} title={text('Destination date', 'Tanggal destinasi')} language={language} onClose={() => setPickingDate(false)} onConfirm={(value) => { setDraftDate(value); setPickingDate(false); }} />
   </>;

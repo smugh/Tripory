@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Pressable, Image, ActivityIndicator, Modal, TextInput, Animated } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, Pressable, Image, ActivityIndicator, Modal, TextInput, Animated, Platform, KeyboardAvoidingView } from 'react-native';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
@@ -23,6 +23,7 @@ import { itemRepository } from '@/db/repositories/item.repository';
 import { MomentRecord } from '@/db/schema/moments';
 import { formatDateRange, formatTripDurationLabel } from '@/core/utils';
 import { useUIStore } from '@/stores/ui-store';
+import { useActiveInputStore } from '@/stores/active-input-store';
 import { useI18n } from '@/core/i18n';
 import { PackingIllustration } from '@/components/packing/PackingIllustration';
 import { PackingItemRow, ItemBounds } from '@/components/packing/PackingItemRow';
@@ -54,6 +55,15 @@ export default function TripDetailScreen() {
   const [showDestinationPacking, setShowDestinationPacking] = useState(false);
   const [packingTransitionItemId, setPackingTransitionItemId] = useState<string | null>(null);
   const packingScrollRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
+  const keyboardHeight = useActiveInputStore((s) => s.keyboardHeight);
+
+  useEffect(() => {
+    useActiveInputStore.getState().setActiveScrollRef(packingScrollRef);
+    return () => {
+      useActiveInputStore.getState().setActiveScrollRef(null);
+    };
+  }, []);
+
   const packingSectionY = useRef(0);
   const packingBusy = useRef(false);
   const { bagRef, bagScale, flyToBag, overlay: packingFlightOverlay } = usePackingFlight(() => {
@@ -79,6 +89,8 @@ export default function TripDetailScreen() {
   const [inventorySearch, setInventorySearch] = useState('');
 
   const [newItemName, setNewItemName] = useState('');
+  const [isDropOffMode, setIsDropOffMode] = useState(false);
+  const [dropOffTargetDestId, setDropOffTargetDestId] = useState<string | null>(null);
   const [newMomentCaption, setNewMomentCaption] = useState('');
   const [selectedPhotoUri, setSelectedPhotoUri] = useState<string | null>(null);
   const [momentLocationTag, setMomentLocationTag] = useState<string>('');
@@ -234,6 +246,22 @@ export default function TripDetailScreen() {
     }
   };
 
+  const handleToggleDestinationTodo = async (destinationId: string, todoId: string) => {
+    const dest = destinations.find((d) => d.id === destinationId);
+    if (!dest || !dest.todos) return;
+    try {
+      const list: { id: string; text: string; completed: boolean }[] = JSON.parse(dest.todos);
+      const updated = list.map((td) => (td.id === todoId ? { ...td, completed: !td.completed } : td));
+      const jsonStr = JSON.stringify(updated);
+      setDestinations((prev) =>
+        prev.map((d) => (d.id === destinationId ? { ...d, todos: jsonStr } : d))
+      );
+      await destinationRepository.update(destinationId, { todos: jsonStr });
+    } catch {
+      Alert.alert(language === 'en' ? 'Error' : 'Gagal', 'Could not update to-do.');
+    }
+  };
+
   const openInventoryPicker = async (destinationId: string | null) => {
     setTargetDestinationForNewItem(destinationId);
     setInventorySearch('');
@@ -283,8 +311,8 @@ export default function TripDetailScreen() {
         tripId: id,
         itemId: null,
         customName: newItemName.trim(),
-        category: 'Gear & Activities',
-        plannedDestinationId: null,
+        category: isDropOffMode ? 'Drop Off' : 'Gear & Activities',
+        plannedDestinationId: isDropOffMode ? (dropOffTargetDestId || destinations[0]?.id || null) : null,
         state: 'planned',
         priority: 'must_have',
         quantity: 1,
@@ -450,6 +478,7 @@ export default function TripDetailScreen() {
       setMomentLocationTag('');
       setMomentCoords(null);
       loadTripData();
+      packingScrollRef.current?.scrollTo({ y: 380, animated: true });
       Alert.alert(language === 'en' ? 'Moment Saved' : 'Momen Tersimpan', t.trip.alertMomentSaved);
     } catch {
       Alert.alert(language === 'en' ? 'Error' : 'Gagal', t.trip.alertMomentSaveError);
@@ -532,7 +561,20 @@ export default function TripDetailScreen() {
 
   return (
     <ScreenContainer edges={['left', 'right']}>
-      <ScrollView ref={packingScrollRef} scrollEnabled={packingTransitionItemId === null} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        ref={packingScrollRef}
+        scrollEnabled={packingTransitionItemId === null}
+        contentContainerStyle={[
+          styles.scrollContent,
+          keyboardHeight > 0 && { paddingBottom: keyboardHeight + 240 },
+        ]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+        automaticallyAdjustKeyboardInsets={Platform.OS === 'ios' ? false : true}
+        onScroll={(e) => useActiveInputStore.getState().setActiveScrollY(e.nativeEvent.contentOffset.y)}
+        scrollEventThrottle={16}
+      >
         {/* Hero Header Card */}
         <Card variant="navy" style={styles.heroCard}>
           {/* Header Row: Title & Status Badge */}
@@ -670,6 +712,7 @@ export default function TripDetailScreen() {
               onEditDestination={handleEditDestination}
               onDeleteDestination={handleDeleteDestination}
               onMoveDestination={handleMoveDestination}
+              onToggleTodo={handleToggleDestinationTodo}
               onAddStopPress={() => setIsAddingDest(true)}
             />
 
@@ -738,7 +781,7 @@ export default function TripDetailScreen() {
                   onPress={async () => {
                     const result = await ImagePicker.launchImageLibraryAsync({
                       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                      quality: 0.85,
+                      quality: 0.2, // Ukuran paling rendah
                       allowsEditing: true,
                       aspect: [16, 9],
                     });
@@ -887,30 +930,124 @@ export default function TripDetailScreen() {
                     })
                 )}
 
-                {/* Add item inline */}
+                {/* Add item inline with Drop Off Mode toggle */}
                 <View style={styles.addItemBox}>
+                  <View style={styles.itemModeToggleRow}>
+                    <Pressable
+                      onPress={() => setIsDropOffMode(false)}
+                      style={[
+                        styles.itemModePill,
+                        !isDropOffMode && styles.itemModePillActive,
+                      ]}
+                    >
+                      <Ionicons
+                        name="bag-handle-outline"
+                        size={14}
+                        color={!isDropOffMode ? '#FFFFFF' : colors.text.secondary}
+                      />
+                      <Typography
+                        variant="caption"
+                        color={!isDropOffMode ? '#FFFFFF' : colors.text.secondary}
+                        style={{ fontWeight: '700', marginLeft: 4 }}
+                      >
+                        {language === 'en' ? 'Standard Item' : 'Bawaan Standar'}
+                      </Typography>
+                    </Pressable>
+
+                    <Pressable
+                      onPress={() => setIsDropOffMode(true)}
+                      style={[
+                        styles.itemModePill,
+                        isDropOffMode && [styles.itemModePillActive, { backgroundColor: '#EA580C', borderColor: '#EA580C' }],
+                      ]}
+                    >
+                      <Ionicons
+                        name="gift"
+                        size={14}
+                        color={isDropOffMode ? '#FFFFFF' : '#EA580C'}
+                      />
+                      <Typography
+                        variant="caption"
+                        color={isDropOffMode ? '#FFFFFF' : '#EA580C'}
+                        style={{ fontWeight: '700', marginLeft: 4 }}
+                      >
+                        {language === 'en' ? 'Drop Off Item' : 'Item Drop Off'}
+                      </Typography>
+                    </Pressable>
+                  </View>
+
+                  {isDropOffMode && (
+                    <View style={styles.dropOffNoticeBox}>
+                      <Ionicons name="information-circle" size={16} color="#EA580C" style={{ marginRight: 6 }} />
+                      <Typography variant="caption" color="#9A3412" style={{ flex: 1, fontSize: 11, lineHeight: 15 }}>
+                        {language === 'en'
+                          ? 'Drop off item is single-use for this trip (souvenirs, snacks). It won’t enter master inventory and is recorded in the album.'
+                          : 'Item drop off sekali pakai untuk trip ini (oleh-oleh, snack). Tidak masuk inventaris master dan dicatat di album.'}
+                      </Typography>
+                    </View>
+                  )}
+
+                  {isDropOffMode && destinations.length > 0 && (
+                    <View style={styles.dropDestSelector}>
+                      <Typography variant="caption" color={colors.text.secondary} style={{ fontWeight: '700', marginBottom: 6 }}>
+                        {language === 'en' ? 'Drop off at destination:' : 'Drop di destinasi tujuan:'}
+                      </Typography>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                        {destinations.map((d, dIdx) => {
+                          const isChosen = (dropOffTargetDestId || destinations[0]?.id) === d.id;
+                          return (
+                            <Pressable
+                              key={d.id}
+                              onPress={() => setDropOffTargetDestId(d.id)}
+                              style={[
+                                styles.dropDestChip,
+                                isChosen && { backgroundColor: '#EA580C', borderColor: '#EA580C' },
+                              ]}
+                            >
+                              <Typography
+                                variant="caption"
+                                color={isChosen ? '#FFFFFF' : colors.text.primary}
+                                style={{ fontWeight: isChosen ? '700' : '400', fontSize: 11 }}
+                              >
+                                #{dIdx + 1} {d.name}
+                              </Typography>
+                            </Pressable>
+                          );
+                        })}
+                      </ScrollView>
+                    </View>
+                  )}
+
                   <Input
-                    label={t.trip.manualAddTitle}
-                    placeholder={t.trip.manualAddPlaceholder}
+                    label={isDropOffMode
+                      ? (language === 'en' ? 'Drop Off Item Name' : 'Nama Item Drop Off / Oleh-oleh')
+                      : t.trip.manualAddTitle}
+                    placeholder={isDropOffMode
+                      ? (language === 'en' ? 'e.g., Souvenirs for family, road snacks...' : 'Misal: Oleh-oleh Bakpia, Snack Perjalanan, Titipan...')
+                      : t.trip.manualAddPlaceholder}
                     value={newItemName}
                     onChangeText={setNewItemName}
                   />
 
                   <Button
-                    label={language === 'en' ? '+ Add to Packing List' : '+ Tambah ke Daftar Packing'}
+                    label={isDropOffMode
+                      ? (language === 'en' ? '+ Add Drop Off Item' : '+ Simpan Item Drop Off')
+                      : (language === 'en' ? '+ Add to Packing List' : '+ Tambah ke Daftar Packing')}
                     variant="primary"
                     size="sm"
                     onPress={handleAddTripItem}
-                    style={styles.saveItemBtn}
+                    style={[styles.saveItemBtn, isDropOffMode && { backgroundColor: '#EA580C' }]}
                   />
                 </View>
-                <Button
-                  label={language === 'en' ? '+ Add from Inventory' : '+ Tambah dari Inventaris'}
-                  variant="secondary"
-                  size="sm"
-                  onPress={() => openInventoryPicker(null)}
-                  style={{ marginTop: spacing[2] }}
-                />
+                {!isDropOffMode && (
+                  <Button
+                    label={language === 'en' ? '+ Add from Inventory' : '+ Tambah dari Inventaris'}
+                    variant="secondary"
+                    size="sm"
+                    onPress={() => openInventoryPicker(null)}
+                    style={{ marginTop: spacing[2] }}
+                  />
+                )}
               </Card>
               <Pressable
                 accessibilityRole="button"
@@ -1039,14 +1176,63 @@ export default function TripDetailScreen() {
 
                 {/* Photo Preview / Picker Area */}
                 {selectedPhotoUri ? (
-                  <View style={styles.photoPreviewWrapper}>
-                    <Image source={{ uri: selectedPhotoUri }} style={styles.photoPreviewImage} />
-                    <Pressable
-                      style={styles.removePhotoBadge}
-                      onPress={() => setSelectedPhotoUri(null)}
-                    >
-                      <Ionicons name="close-circle" size={26} color={colors.status.error} />
-                    </Pressable>
+                  <View style={styles.capturedPhotoContainer}>
+                    <View style={styles.photoPreviewWrapper}>
+                      <Image source={{ uri: selectedPhotoUri }} style={styles.photoPreviewImage} />
+                      <Pressable
+                        style={styles.removePhotoBadge}
+                        onPress={() => setSelectedPhotoUri(null)}
+                      >
+                        <Ionicons name="close-circle" size={26} color={colors.status.error} />
+                      </Pressable>
+                    </View>
+
+                    {/* Quick photo actions */}
+                    <View style={styles.capturedActionsRow}>
+                      <Pressable
+                        style={[styles.photoActionSubBtn, { backgroundColor: colors.surface.page, borderColor: colors.border.default }]}
+                        onPress={handleTakePhoto}
+                      >
+                        <Ionicons name="camera-outline" size={15} color={colors.brand.blue} />
+                        <Typography variant="caption" color={colors.brand.blue} style={{ fontWeight: '700', marginLeft: 4 }}>
+                          {language === 'en' ? 'Retake' : 'Foto Ulang'}
+                        </Typography>
+                      </Pressable>
+
+                      <Pressable
+                        style={[styles.photoActionSubBtn, { backgroundColor: colors.surface.page, borderColor: colors.border.default }]}
+                        onPress={handlePickGallery}
+                      >
+                        <Ionicons name="images-outline" size={15} color={colors.brand.coral} />
+                        <Typography variant="caption" color={colors.brand.coral} style={{ fontWeight: '700', marginLeft: 4 }}>
+                          {language === 'en' ? 'Gallery' : 'Galeri'}
+                        </Typography>
+                      </Pressable>
+
+                      <Pressable
+                        style={[styles.photoActionSubBtn, { backgroundColor: colors.surface.page, borderColor: colors.border.default }]}
+                        onPress={() => setSelectedPhotoUri(null)}
+                      >
+                        <Ionicons name="trash-outline" size={15} color={colors.status.error} />
+                        <Typography variant="caption" color={colors.status.error} style={{ fontWeight: '700', marginLeft: 4 }}>
+                          {language === 'en' ? 'Remove' : 'Hapus Foto'}
+                        </Typography>
+                      </Pressable>
+                    </View>
+
+                    {/* Immediate Save Button right under captured photo */}
+                    <Button
+                      label={
+                        isSavingMoment
+                          ? (language === 'en' ? 'Saving Moment…' : 'Menyimpan Momen…')
+                          : (language === 'en' ? '💾 Save Moment' : '💾 Simpan Momen')
+                      }
+                      variant="primary"
+                      size="md"
+                      onPress={handleAddMoment}
+                      disabled={isSavingMoment}
+                      style={{ marginTop: spacing[3] }}
+                    />
                   </View>
                 ) : (
                   <View style={styles.photoPickerRow}>
@@ -1076,16 +1262,16 @@ export default function TripDetailScreen() {
                   </View>
                 )}
 
-                {/* Caption Input */}
+                {/* Caption Input - Always Visible */}
                 <Input
                   label={t.trip.captionLabel}
                   placeholder={t.trip.captionPlaceholder}
                   value={newMomentCaption}
                   onChangeText={setNewMomentCaption}
-                  style={{ marginTop: spacing[3] }}
+                  style={{ marginTop: spacing[2] }}
                 />
 
-                {/* Location Tag Row */}
+                {/* Location Tag Row - Always Visible */}
                 <View style={styles.locationTagBox}>
                   <View style={{ flex: 1 }}>
                     <Input
@@ -1113,8 +1299,11 @@ export default function TripDetailScreen() {
                   </Pressable>
                 </View>
 
+                {/* Prominent Save Button - Always Visible! */}
                 <Button
-                  label={isSavingMoment ? t.trip.savingMomentBtn : t.trip.saveMomentBtn}
+                  label={isSavingMoment
+                    ? (language === 'en' ? 'Saving Moment…' : 'Menyimpan Momen…')
+                    : (language === 'en' ? '💾 Save Moment' : '💾 Simpan Momen')}
                   variant="primary"
                   size="md"
                   onPress={handleAddMoment}
@@ -1188,18 +1377,36 @@ export default function TripDetailScreen() {
 
       </ScrollView>
       <SafeAreaView edges={['bottom']} style={[styles.endTripFooter, { backgroundColor: themeColors.surface.page, borderTopColor: themeColors.border.default }]}>
-        {isCompleted && (
-          <Typography variant="caption" color={themeColors.text.muted} style={styles.closedTripHint}>
-            {language === 'en' ? 'This trip is already closed.' : 'Perjalanan ini sudah ditutup.'}
-          </Typography>
+        {activeTab === 'moments' ? (
+          <Button
+            label={
+              isSavingMoment
+                ? (language === 'en' ? 'Saving Moment…' : 'Menyimpan Momen…')
+                : selectedPhotoUri
+                ? (language === 'en' ? '💾 Save Moment' : '💾 Simpan Momen')
+                : (language === 'en' ? '💾 Save Moment' : '💾 Simpan Momen')
+            }
+            variant="primary"
+            size="md"
+            onPress={handleAddMoment}
+            disabled={isSavingMoment}
+          />
+        ) : (
+          <>
+            {isCompleted && (
+              <Typography variant="caption" color={themeColors.text.muted} style={styles.closedTripHint}>
+                {language === 'en' ? 'This trip is already closed.' : 'Perjalanan ini sudah ditutup.'}
+              </Typography>
+            )}
+            <Button
+              label={language === 'en' ? 'End Trip' : 'Akhiri Perjalanan'}
+              variant="destructive"
+              size="md"
+              onPress={handleCloseTrip}
+              disabled={isCompleted}
+            />
+          </>
         )}
-        <Button
-          label={language === 'en' ? 'End Trip' : 'Akhiri Perjalanan'}
-          variant="destructive"
-          size="md"
-          onPress={handleCloseTrip}
-          disabled={isCompleted}
-        />
       </SafeAreaView>
       {packingFlightOverlay}
 
@@ -1209,7 +1416,10 @@ export default function TripDetailScreen() {
         visible={isInventoryPickerOpen}
         onRequestClose={() => setIsInventoryPickerOpen(false)}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
           <View style={[styles.inventoryPickerCard, { backgroundColor: colors.surface.card }]}>
             <View style={styles.modalHeader}>
               <Typography variant="h3" color={colors.brand.navy}>
@@ -1250,7 +1460,7 @@ export default function TripDetailScreen() {
               )}
             </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* MODAL: SHIFT ITEM TO ANOTHER DESTINATION */}
@@ -1623,7 +1833,7 @@ export default function TripDetailScreen() {
 const styles = StyleSheet.create({
   scrollContent: {
     paddingTop: spacing[2],
-    paddingBottom: spacing[6],
+    paddingBottom: 160,
   },
   cardHeaderRow: {
     flexDirection: 'row',
@@ -1877,6 +2087,48 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border.default,
   },
+  itemModeToggleRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: spacing[3],
+  },
+  itemModePill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 7,
+    paddingHorizontal: 8,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    backgroundColor: colors.surface.page,
+  },
+  itemModePillActive: {
+    backgroundColor: colors.brand.navy,
+    borderColor: colors.brand.navy,
+  },
+  dropDestSelector: {
+    marginBottom: spacing[3],
+  },
+  dropDestChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border.default,
+    backgroundColor: colors.surface.page,
+  },
+  dropOffNoticeBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+    borderRadius: radius.md,
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    marginBottom: spacing[3],
+  },
   saveItemBtn: {
     marginTop: spacing[2],
   },
@@ -1897,6 +2149,24 @@ const styles = StyleSheet.create({
     paddingTop: spacing[3],
     borderTopWidth: 1,
     borderTopColor: colors.border.default,
+  },
+  capturedPhotoContainer: {
+    width: '100%',
+  },
+  capturedActionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: spacing[2],
+  },
+  photoActionSubBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    borderRadius: radius.md,
+    borderWidth: 1,
   },
   photoPreviewWrapper: {
     position: 'relative',

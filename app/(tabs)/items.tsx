@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, StyleSheet, FlatList, Modal, Alert, Pressable, ScrollView, Image, KeyboardAvoidingView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -9,6 +9,7 @@ import { ItemRecord } from '@/db/schema/items';
 import { useCategoryStore } from '@/stores/category-store';
 import { useI18n } from '@/core/i18n';
 import { useUIStore } from '@/stores/ui-store';
+import { useActiveInputStore } from '@/stores/active-input-store';
 import { mediaService } from '@/services/media';
 
 export default function ItemsScreen() {
@@ -22,6 +23,16 @@ export default function ItemsScreen() {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<ItemRecord | null>(null);
+  const modalScrollRef = useRef<React.ElementRef<typeof ScrollView>>(null);
+  const keyboardHeight = useActiveInputStore((s) => s.keyboardHeight);
+
+  useEffect(() => {
+    if (isModalOpen) {
+      useActiveInputStore.getState().setActiveScrollRef(modalScrollRef);
+    } else {
+      useActiveInputStore.getState().setActiveScrollRef(null);
+    }
+  }, [isModalOpen]);
 
   // Form states for Add / Edit
   const [itemName, setItemName] = useState('');
@@ -80,7 +91,7 @@ export default function ItemsScreen() {
       const res = await ImagePicker.launchCameraAsync({
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.8,
+        quality: 0.2, // Ukuran paling rendah
       });
       if (!res.canceled && res.assets && res.assets[0]?.uri) {
         setItemImageUri(res.assets[0].uri);
@@ -104,7 +115,7 @@ export default function ItemsScreen() {
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.8,
+        quality: 0.2, // Ukuran paling rendah
       });
       if (!res.canceled && res.assets && res.assets[0]?.uri) {
         setItemImageUri(res.assets[0].uri);
@@ -404,10 +415,16 @@ export default function ItemsScreen() {
             ]}
           >
             <ScrollView
+              ref={modalScrollRef}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
-              contentContainerStyle={styles.modalScrollContent}
+              contentContainerStyle={[
+                styles.modalScrollContent,
+                keyboardHeight > 0 && { paddingBottom: keyboardHeight + 120 },
+              ]}
+              onScroll={(e) => useActiveInputStore.getState().setActiveScrollY(e.nativeEvent.contentOffset.y)}
+              scrollEventThrottle={16}
             >
               <View style={styles.modalHeader}>
                 <Typography variant="h2" color={themeColors.brand.navy}>

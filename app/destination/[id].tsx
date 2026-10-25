@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -9,6 +9,7 @@ import {
   Alert,
   Modal,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, useFocusEffect, Redirect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,6 +18,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { ScreenContainer, Typography, Badge, Button, Card } from '@/components/ui';
 import { useThemeColors } from '@/core/theme';
 import { useUIStore } from '@/stores/ui-store';
+import { useActiveInputStore } from '@/stores/active-input-store';
 import { useI18n } from '@/core/i18n';
 import { destinationRepository } from '@/db/repositories/destination.repository';
 import { packingRepository } from '@/db/repositories/packing.repository';
@@ -28,6 +30,7 @@ import { generateId } from '@/core/utils/id';
 import { mediaService } from '@/services/media';
 import { DestinationScheduleEditor } from '@/components/roadmap/DestinationScheduleEditor';
 import { getDestinationDate, formatDestinationDate } from '@/core/utils/destination-schedule';
+import { isDropOffItem } from '@/domains/packing/types';
 
 interface DestinationTodo {
   id: string;
@@ -61,6 +64,15 @@ export default function DestinationDetailScreen() {
   const [activeItemMenu, setActiveItemMenu] = useState<TripItemRecord | null>(null);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState(false);
+  const scrollRef = useRef<React.ElementRef<typeof ScrollView>>(null);
+  const keyboardHeight = useActiveInputStore((s) => s.keyboardHeight);
+
+  useEffect(() => {
+    useActiveInputStore.getState().setActiveScrollRef(scrollRef);
+    return () => {
+      useActiveInputStore.getState().setActiveScrollRef(null);
+    };
+  }, []);
 
   const loadData = useCallback(async () => {
     if (!id) return;
@@ -117,7 +129,7 @@ export default function DestinationDetailScreen() {
         }
         result = await ImagePicker.launchCameraAsync({
           mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          quality: 0.85,
+          quality: 0.2, // Ukuran paling rendah
           allowsEditing: true,
           aspect: [16, 9],
         });
@@ -129,7 +141,7 @@ export default function DestinationDetailScreen() {
         }
         result = await ImagePicker.launchImageLibraryAsync({
           mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          quality: 0.85,
+          quality: 0.2, // Ukuran paling rendah
           allowsEditing: true,
           aspect: [16, 9],
         });
@@ -274,7 +286,19 @@ export default function DestinationDetailScreen() {
 
   return (
     <ScreenContainer>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={[
+          styles.scrollContent,
+          keyboardHeight > 0 && { paddingBottom: keyboardHeight + 240 },
+        ]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+        automaticallyAdjustKeyboardInsets={Platform.OS === 'ios' ? false : true}
+        onScroll={(e) => useActiveInputStore.getState().setActiveScrollY(e.nativeEvent.contentOffset.y)}
+        scrollEventThrottle={16}
+      >
         {/* Cover / Location Image Banner */}
         <View style={styles.imageSection}>
           {destination.imageUri ? (
@@ -379,6 +403,7 @@ export default function DestinationDetailScreen() {
                 const isPacked = item.state === 'packed';
                 const isUsed = item.state === 'used';
                 const isReturned = item.state === 'returned';
+                const isDropOff = isDropOffItem(item);
 
                 let stateBadgeColor: string = colors.status.warning;
                 let stateLabel = t.destDetail.statePlanned;
@@ -387,7 +412,7 @@ export default function DestinationDetailScreen() {
                   stateLabel = t.destDetail.statePacked;
                 } else if (isUsed) {
                   stateBadgeColor = colors.status.success;
-                  stateLabel = t.destDetail.stateUsed;
+                  stateLabel = isDropOff ? (language === 'en' ? 'Dropped Off ✓' : 'Sudah Di-drop ✓') : t.destDetail.stateUsed;
                 } else if (isReturned) {
                   stateBadgeColor = '#8B5CF6';
                   stateLabel = t.destDetail.stateReturned;
@@ -398,13 +423,22 @@ export default function DestinationDetailScreen() {
                     key={item.id}
                     style={[
                       styles.itemRow,
-                      { backgroundColor: colors.surface.page, borderColor: colors.border.default },
+                      {
+                        backgroundColor: isDropOff ? (isDarkMode ? '#2D1A08' : '#FFF9F0') : colors.surface.page,
+                        borderColor: isDropOff ? '#F59E0B' : colors.border.default,
+                        borderWidth: isDropOff ? 1.5 : 1,
+                      },
                     ]}
                   >
                     <View style={styles.itemMainInfo}>
-                      <Typography variant="label" color={colors.brand.navy}>
-                        {item.customName}
-                      </Typography>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                        <Typography variant="label" color={isDropOff ? (isDarkMode ? '#FDBA74' : '#9A3412') : colors.brand.navy} style={isDropOff ? { fontWeight: '700' } : undefined}>
+                          {item.customName}
+                        </Typography>
+                        {isDropOff && (
+                          <Badge label="DROP OFF" variant="accent" size="sm" />
+                        )}
+                      </View>
                       <View style={styles.itemMeta}>
                         <Typography variant="caption" color={colors.text.muted}>
                           {item.category} • Qty: {item.quantity}
@@ -922,7 +956,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 40,
+    paddingBottom: 160,
   },
   imageSection: {
     marginBottom: 16,

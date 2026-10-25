@@ -7,6 +7,8 @@ export const APP_CONFIG = {
   maxContentWidth: 768,
 } as const;
 
+export const DROP_OFF_CATEGORY = 'Drop Off';
+
 export const ITEM_CATEGORIES = [
   'Clothing',
   'Toiletries',
@@ -14,6 +16,7 @@ export const ITEM_CATEGORIES = [
   'Medicine',
   'Documents',
   'Gear & Activities',
+  'Drop Off',
   'Others',
 ] as const;
 

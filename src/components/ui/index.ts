@@ -7,3 +7,4 @@ export * from './EmptyState';
 export * from './ScreenContainer';
 export * from './ProgressBar';
 export * from './DatePickerModal';
+export * from './KeyboardMirrorBar';

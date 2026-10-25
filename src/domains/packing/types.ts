@@ -29,3 +29,9 @@ export interface PackingSummary {
   isReadyForDeparture: boolean;
   statusLabel: string;
 }
+
+export function isDropOffItem(item: { category?: string | null }): boolean {
+  if (!item?.category) return false;
+  const cat = item.category.trim().toLowerCase();
+  return cat === 'drop off' || cat === 'drop-off' || cat === 'dropoff';
+}

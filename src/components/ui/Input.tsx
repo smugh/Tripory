@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, forwardRef, useId, useEffect, useRef, useImperativeHandle } from 'react';
 import {
   View,
   TextInput,
@@ -7,8 +7,9 @@ import {
   ViewStyle,
   StyleProp,
 } from 'react-native';
-import { colors, radius, spacing } from '@/core/theme';
+import { radius, spacing, useThemeColors } from '@/core/theme';
 import { Typography } from './Typography';
+import { useActiveInputStore } from '@/stores/active-input-store';
 
 export interface InputProps extends TextInputProps {
   label?: string;
@@ -16,14 +17,41 @@ export interface InputProps extends TextInputProps {
   containerStyle?: StyleProp<ViewStyle>;
 }
 
-export const Input: React.FC<InputProps> = ({
+export const Input = forwardRef<React.ComponentRef<typeof TextInput>, InputProps>(({
   label,
   error,
   containerStyle,
   style,
+  onFocus,
+  onBlur,
+  onChangeText,
+  value,
+  placeholder,
   ...props
-}) => {
+}, ref) => {
   const [isFocused, setIsFocused] = useState(false);
+  const colors = useThemeColors();
+  const inputId = useId();
+  const internalInputRef = useRef<React.ElementRef<typeof TextInput>>(null);
+
+  useImperativeHandle(ref, () => internalInputRef.current as any);
+
+  const setActiveInput = useActiveInputStore((s) => s.setActiveInput);
+  const updateActiveInputValue = useActiveInputStore((s) => s.updateActiveInputValue);
+  const clearActiveInput = useActiveInputStore((s) => s.clearActiveInput);
+  const scrollInputIntoView = useActiveInputStore((s) => s.scrollInputIntoView);
+
+  useEffect(() => {
+    if (isFocused && typeof value === 'string') {
+      updateActiveInputValue(inputId, value);
+    }
+  }, [value, isFocused, inputId, updateActiveInputValue]);
+
+  useEffect(() => {
+    return () => {
+      clearActiveInput(inputId);
+    };
+  }, [inputId, clearActiveInput]);
 
   return (
     <View style={[styles.container, containerStyle]}>
@@ -34,12 +62,37 @@ export const Input: React.FC<InputProps> = ({
       ) : null}
 
       <TextInput
+        ref={internalInputRef}
+        value={value}
+        placeholder={placeholder}
         placeholderTextColor={colors.text.muted}
-        onFocus={() => setIsFocused(true)}
-        onBlur={() => setIsFocused(false)}
+        onChangeText={(text) => {
+          updateActiveInputValue(inputId, text);
+          onChangeText?.(text);
+        }}
+        onFocus={(e) => {
+          setIsFocused(true);
+          setActiveInput({
+            id: inputId,
+            label,
+            placeholder,
+            value: typeof value === 'string' ? value : '',
+            onChangeText,
+            nativeRef: internalInputRef,
+          });
+          scrollInputIntoView(internalInputRef);
+          onFocus?.(e);
+        }}
+        onBlur={(e) => {
+          setIsFocused(false);
+          clearActiveInput(inputId);
+          onBlur?.(e);
+        }}
         style={[
           styles.input,
           {
+            backgroundColor: colors.surface.card,
+            color: colors.text.primary,
             borderColor: error
               ? colors.status.error
               : isFocused
@@ -59,7 +112,9 @@ export const Input: React.FC<InputProps> = ({
       ) : null}
     </View>
   );
-};
+});
+
+Input.displayName = 'Input';
 
 const styles = StyleSheet.create({
   container: {
@@ -70,11 +125,9 @@ const styles = StyleSheet.create({
   },
   input: {
     minHeight: 44, // Target sentuh minimal 44px
-    backgroundColor: colors.surface.card,
     borderRadius: radius.md,
     paddingHorizontal: spacing[3],
     fontSize: 14,
-    color: colors.text.primary,
   },
   errorText: {
     marginTop: spacing[1],

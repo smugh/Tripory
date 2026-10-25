@@ -16,8 +16,8 @@ function runTests() {
   const startDate = '2026-11-12';
   const endDate = '2026-11-14';
   const days = calculateDurationDays(startDate, endDate);
-  const label = formatTripDurationLabel(startDate, endDate);
-  const range = formatDateRange(startDate, endDate);
+  const label = formatTripDurationLabel(startDate, endDate, 'id');
+  const range = formatDateRange(startDate, endDate, 'id');
 
   console.log(`✓ Hitungan durasi: ${days} hari -> "${label}" (${range})`);
   if (days !== 3 || label !== '3 Hari 2 Malam') {

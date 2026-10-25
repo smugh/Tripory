@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Pressable, Switch } from 'react-native';
+import React, { useState, useMemo, useRef } from 'react';
+import { View, StyleSheet, ScrollView, Alert, Pressable, Switch, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, radius, useThemeColors } from '@/core/theme';
@@ -10,6 +10,7 @@ import { packingRepository } from '@/db/repositories/packing.repository';
 import { formatTripDurationLabel, calculateDurationDays } from '@/core/utils';
 import { getTripPresets, TripPreset } from '@/core/constants';
 import { useUIStore } from '@/stores/ui-store';
+import { useActiveInputStore } from '@/stores/active-input-store';
 import { useI18n } from '@/core/i18n';
 
 export default function NewTripScreen() {
@@ -48,6 +49,15 @@ export default function NewTripScreen() {
   const [notes, setNotes] = useState('');
   const [includeStarterPack, setIncludeStarterPack] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const scrollRef = useRef<React.ElementRef<typeof ScrollView>>(null);
+  const keyboardHeight = useActiveInputStore((s) => s.keyboardHeight);
+
+  React.useEffect(() => {
+    useActiveInputStore.getState().setActiveScrollRef(scrollRef);
+    return () => {
+      useActiveInputStore.getState().setActiveScrollRef(null);
+    };
+  }, []);
 
   // View-only auto-computed duration response
   const durationDays = useMemo(() => calculateDurationDays(startDate, endDate), [startDate, endDate]);
@@ -138,7 +148,19 @@ export default function NewTripScreen() {
 
   return (
     <ScreenContainer edges={['left', 'right', 'bottom']}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={[
+          styles.scrollContent,
+          keyboardHeight > 0 && { paddingBottom: keyboardHeight + 240 },
+        ]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+        automaticallyAdjustKeyboardInsets={Platform.OS === 'ios' ? false : true}
+        onScroll={(e) => useActiveInputStore.getState().setActiveScrollY(e.nativeEvent.contentOffset.y)}
+        scrollEventThrottle={16}
+      >
         {/* Wizard Header */}
         <View style={styles.header}>
           <Typography variant="h2" color={themeColors.brand.navy} style={styles.headerTitle}>
@@ -244,6 +266,7 @@ export default function NewTripScreen() {
             placeholder={t.newTrip.namePlaceholder}
             value={name}
             onChangeText={setName}
+            onFocus={() => scrollRef.current?.scrollTo({ y: 120, animated: true })}
           />
 
           <Input
@@ -251,6 +274,7 @@ export default function NewTripScreen() {
             placeholder={t.newTrip.destPlaceholder}
             value={destination}
             onChangeText={setDestination}
+            onFocus={() => scrollRef.current?.scrollTo({ y: 220, animated: true })}
           />
 
           {/* DEPARTURE DATE (CAN BACKDATE) */}
@@ -404,7 +428,8 @@ export default function NewTripScreen() {
 
 const styles = StyleSheet.create({
   scrollContent: {
-    paddingVertical: spacing[3],
+    paddingTop: spacing[3],
+    paddingBottom: 160,
   },
   backRow: {
     flexDirection: 'row',

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, TextInput, Pressable, Modal, Alert } from 'react-native';
+import { View, StyleSheet, ScrollView, TextInput, Pressable, Modal, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { spacing, radius, useThemeColors } from '@/core/theme';
 import { Typography, Card, ScreenContainer } from '@/components/ui';
@@ -123,10 +123,14 @@ export default function CategoriesScreen() {
         animationType="fade"
         onRequestClose={() => setIsAddCatModalVisible(false)}
       >
-        <Pressable
+        <KeyboardAvoidingView
           style={styles.modalOverlay}
-          onPress={() => setIsAddCatModalVisible(false)}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setIsAddCatModalVisible(false)}
+          />
           <Pressable
             style={[
               styles.modalContent,
@@ -189,7 +193,7 @@ export default function CategoriesScreen() {
               </Pressable>
             </View>
           </Pressable>
-        </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
     </ScreenContainer>
   );

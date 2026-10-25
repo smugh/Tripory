@@ -31,6 +31,7 @@ export default function TravelMemoryScreen() {
   const [destinations, setDestinations] = useState<DestinationRecord[]>([]);
   const [moments, setMoments] = useState<MomentRecord[]>([]);
   const [missingItems, setMissingItems] = useState<TripItemRecord[]>([]);
+  const [dropOffItems, setDropOffItems] = useState<TripItemRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [notesDraft, setNotesDraft] = useState('');
@@ -41,6 +42,7 @@ export default function TravelMemoryScreen() {
     try {
       const tripRecord = await tripRepository.getById(id);
       if (!tripRecord) { setTrip(null); return; }
+      const isDropOff = (it: { category?: string | null }) => it.category?.toLowerCase() === 'drop off';
       if (tripRecord.status === 'completed') {
         const archive = await archiveRepository.getCompleted(id);
         setTrip(archive.trip);
@@ -48,6 +50,7 @@ export default function TravelMemoryScreen() {
         setDestinations(archive.destinations);
         setMoments(archive.moments);
         setMissingItems(archive.items.filter((item) => item.state === 'missing' || archive.events?.some((event) => event.tripItemId === item.id && event.state === 'missing')));
+        setDropOffItems(archive.items.filter(isDropOff));
         return;
       }
       setTrip(tripRecord);
@@ -60,6 +63,7 @@ export default function TravelMemoryScreen() {
       setDestinations(tripStops);
       setMoments(tripMoments);
       setMissingItems(tripItems.filter((item) => item.state === 'missing'));
+      setDropOffItems(tripItems.filter(isDropOff));
     } catch {
       setTrip(null);
     } finally {
@@ -307,6 +311,40 @@ export default function TravelMemoryScreen() {
                       {entry.destination.imageUri ? (
                         <Image source={{ uri: entry.destination.imageUri }} style={styles.destinationImage} resizeMode="cover" />
                       ) : null}
+                      {(() => {
+                        let todosList: { id: string; text: string; completed: boolean }[] = [];
+                        if (entry.destination.todos) {
+                          try {
+                            const parsed = JSON.parse(entry.destination.todos);
+                            if (Array.isArray(parsed)) todosList = parsed;
+                          } catch {}
+                        }
+                        if (todosList.length === 0) return null;
+                        return (
+                          <View style={{ marginTop: 8, paddingTop: 6, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border.muted }}>
+                            <Typography variant="caption" color={colors.text.muted} style={{ fontWeight: '700', marginBottom: 3 }}>
+                              {language === 'en' ? 'Checklist / Notes' : 'Catatan / Checklist'} ({todosList.filter((t) => t.completed).length}/{todosList.length})
+                            </Typography>
+                            {todosList.map((td) => (
+                              <View key={td.id} style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+                                <Ionicons
+                                  name={td.completed ? 'checkmark-circle' : 'square-outline'}
+                                  size={13}
+                                  color={td.completed ? colors.status.success : colors.text.muted}
+                                  style={{ marginRight: 5 }}
+                                />
+                                <Typography
+                                  variant="caption"
+                                  color={td.completed ? colors.text.muted : colors.text.primary}
+                                  style={td.completed ? { textDecorationLine: 'line-through', opacity: 0.65 } : undefined}
+                                >
+                                  {td.text}
+                                </Typography>
+                              </View>
+                            ))}
+                          </View>
+                        );
+                      })()}
                     </Card>
                   ) : (
                     <View style={[styles.memoryCard, { backgroundColor: colors.surface.card, borderColor: colors.border.default }]}>
@@ -337,6 +375,63 @@ export default function TravelMemoryScreen() {
                 </View>
               </View>
             ))}
+          </View>
+        )}
+
+        {dropOffItems.length > 0 && (
+          <View style={[styles.notesCard, { backgroundColor: colors.surface.card, borderColor: '#F59E0B', borderWidth: 1.5 }]}>
+            <View style={styles.notesHeader}>
+              <View style={styles.notesTitleRow}>
+                <Ionicons name="gift-outline" size={18} color="#EA580C" />
+                <Typography variant="h3" color={colors.brand.navy} style={styles.notesTitle}>
+                  {language === 'en' ? 'Drop-Off Items & Souvenirs' : 'Catatan Barang Drop Off & Oleh-oleh'}
+                </Typography>
+              </View>
+              <Badge label={`${dropOffItems.length}`} variant="accent" size="sm" />
+            </View>
+            <Typography variant="caption" color={colors.text.muted} style={{ marginBottom: spacing[2] }}>
+              {language === 'en'
+                ? 'Single-use items recorded during the trip (souvenirs, snacks):'
+                : 'Catatan barang sekali pakai selama perjalanan (oleh-oleh, titipan, makanan):'}
+            </Typography>
+            <View style={{ gap: 6 }}>
+              {dropOffItems.map((item) => {
+                const targetDest = destinations.find((d) => d.id === item.plannedDestinationId);
+                const isDropped = item.state === 'used';
+                return (
+                  <View
+                    key={item.id}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      paddingVertical: 6,
+                      borderBottomWidth: StyleSheet.hairlineWidth,
+                      borderBottomColor: colors.border.muted,
+                    }}
+                  >
+                    <View style={{ flex: 1, marginRight: 8 }}>
+                      <Typography variant="body" color={colors.text.primary} style={{ fontWeight: '600', fontSize: 13 }}>
+                        {item.customName}
+                      </Typography>
+                      {targetDest ? (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+                          <Ionicons name="location-outline" size={12} color="#EA580C" />
+                          <Typography variant="caption" color="#EA580C" style={{ marginLeft: 3, fontWeight: '600' }}>
+                            {language === 'en' ? `Destination: ${targetDest.name}` : `Destinasi: ${targetDest.name}`}
+                          </Typography>
+                        </View>
+                      ) : null}
+                    </View>
+                    <Badge
+                      label={isDropped ? (language === 'en' ? 'Dropped Off ✓' : 'Telah Di-drop ✓') : (language === 'en' ? 'Recorded' : 'Tercatat')}
+                      variant={isDropped ? 'success' : 'neutral'}
+                      size="sm"
+                    />
+                  </View>
+                );
+              })}
+            </View>
           </View>
         )}
 

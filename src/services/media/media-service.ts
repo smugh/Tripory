@@ -1,10 +1,20 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
-import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { MediaFile, SaveMediaInput } from './media-types';
 import { generateId } from '@/core/utils/id';
 import { logger } from '@/core/utils/logger';
 import { APP_CONFIG } from '@/core/constants';
+
+let ImageManipulatorModule: typeof import('expo-image-manipulator') | null = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  ImageManipulatorModule = require('expo-image-manipulator');
+} catch (error) {
+  logger.warn('Modul native ExpoImageManipulator tidak tersedia, fallback ke FileSystem', {
+    category: 'media',
+    error: error instanceof Error ? error.message : String(error),
+  });
+}
 
 class MediaService {
   private baseDir: string;
@@ -59,7 +69,8 @@ class MediaService {
   }
 
   /**
-   * Mengambil gambar langsung menggunakan kamera perangkat dan menyimpannya secara lokal
+   * Mengambil gambar langsung menggunakan kamera perangkat dan menyimpannya secara lokal.
+   * Dikonversi ke ukuran/size paling rendah untuk hemat storage.
    */
   async takePhoto(): Promise<MediaFile | null> {
     const hasPermission = await this.requestCameraPermission();
@@ -70,7 +81,7 @@ class MediaService {
         mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [4, 3],
-        quality: 0.8,
+        quality: 0.2, // Konversi ke size paling rendah
       });
 
       if (result.canceled || !result.assets || result.assets.length === 0) {
@@ -92,7 +103,8 @@ class MediaService {
   }
 
   /**
-   * Memilih gambar dari galeri perangkat dan menyimpannya ke storage persisten lokal
+   * Memilih gambar dari galeri perangkat dan menyimpannya ke storage persisten lokal.
+   * Dikonversi ke ukuran/size paling rendah untuk hemat storage.
    */
   async pickImageFromGallery(): Promise<MediaFile | null> {
     const hasPermission = await this.requestGalleryPermission();
@@ -103,7 +115,7 @@ class MediaService {
         mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [4, 3],
-        quality: 0.8,
+        quality: 0.2, // Konversi ke size paling rendah
       });
 
       if (result.canceled || !result.assets || result.assets.length === 0) {
@@ -126,6 +138,7 @@ class MediaService {
 
   /**
    * Menyimpan foto dari temporary picker/kamera ke storage aplikasi lokal persisten.
+   * Dikonversi dan dikompresi ke dimensi & resolusi paling rendah (640px max, compress 0.2).
    */
   async savePhoto(input: SaveMediaInput): Promise<MediaFile> {
     await this.ensureDirectoryExists();
@@ -133,21 +146,46 @@ class MediaService {
     const mediaId = generateId('img');
     const relativePath = `${APP_CONFIG.storageMediaDir}/${mediaId}.jpg`;
     const destinationUri = `${FileSystem.documentDirectory ?? ''}${relativePath}`;
-    const context = ImageManipulator.manipulate(input.sourceUri, { maxWidth: 1600, maxHeight: 1600 });
-    let renderedImage: Awaited<ReturnType<typeof context.renderAsync>> | null = null;
 
-    try {
-      renderedImage = await context.renderAsync();
-      const compressedImage = await renderedImage.saveAsync({
-        format: SaveFormat.JPEG,
-        compress: 0.72,
-      });
+    if (ImageManipulatorModule?.ImageManipulator) {
+      const context = ImageManipulatorModule.ImageManipulator.manipulate(input.sourceUri, { maxWidth: 640, maxHeight: 640 });
+      let renderedImage: Awaited<ReturnType<typeof context.renderAsync>> | null = null;
 
-      if (FileSystem.documentDirectory) {
-        await FileSystem.moveAsync({ from: compressedImage.uri, to: destinationUri });
+      try {
+        renderedImage = await context.renderAsync();
+        const compressedImage = await renderedImage.saveAsync({
+          format: ImageManipulatorModule.SaveFormat.JPEG,
+          compress: 0.2, // Kompresi paling rendah untuk ukuran file minimal
+        });
+
+        if (FileSystem.documentDirectory) {
+          await FileSystem.moveAsync({ from: compressedImage.uri, to: destinationUri });
+        }
+
+        const savedUri = FileSystem.documentDirectory ? destinationUri : compressedImage.uri;
+        const info = await FileSystem.getInfoAsync(savedUri);
+        const media: MediaFile = {
+          id: mediaId,
+          relativePath,
+          fullUri: savedUri,
+          sizeBytes: info.exists && 'size' in info ? (info as { size?: number }).size : undefined,
+          mimeType: 'image/jpeg',
+          createdAt: new Date().toISOString(),
+        };
+
+        logger.info(`Foto dikompresi dan disimpan: ${relativePath}`, {
+          category: 'media',
+        });
+        return media;
+      } finally {
+        renderedImage?.release();
+        context.release();
       }
-
-      const savedUri = FileSystem.documentDirectory ? destinationUri : compressedImage.uri;
+    } else {
+      if (FileSystem.documentDirectory) {
+        await FileSystem.copyAsync({ from: input.sourceUri, to: destinationUri });
+      }
+      const savedUri = FileSystem.documentDirectory ? destinationUri : input.sourceUri;
       const info = await FileSystem.getInfoAsync(savedUri);
       const media: MediaFile = {
         id: mediaId,
@@ -158,13 +196,10 @@ class MediaService {
         createdAt: new Date().toISOString(),
       };
 
-      logger.info(`Foto dikompresi dan disimpan: ${relativePath}`, {
+      logger.info(`Foto disimpan tanpa kompresi manipulator: ${relativePath}`, {
         category: 'media',
       });
       return media;
-    } finally {
-      renderedImage?.release();
-      context.release();
     }
   }
 

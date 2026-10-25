@@ -19,6 +19,7 @@ export interface DestinationRoadmapProps {
   onEditDestination?: (destination: DestinationRecord) => void;
   onDeleteDestination?: (destination: DestinationRecord) => void;
   onMoveDestination?: (destination: DestinationRecord, direction: -1 | 1) => void;
+  onToggleTodo?: (destinationId: string, todoId: string) => void;
   visitedIds?: string[];
 }
 
@@ -31,6 +32,7 @@ export const DestinationRoadmap: React.FC<DestinationRoadmapProps> = ({
   onEditDestination,
   onDeleteDestination,
   onMoveDestination,
+  onToggleTodo,
   visitedIds = [],
 }) => {
   const router = useRouter();
@@ -218,6 +220,60 @@ export const DestinationRoadmap: React.FC<DestinationRoadmapProps> = ({
                       </Typography>
                     </View>
                   ) : null}
+
+                  {/* Destination Checklist Todos */}
+                  {(() => {
+                    let destTodos: { id: string; text: string; completed: boolean }[] = [];
+                    if (dest.todos) {
+                      try {
+                        const parsed = JSON.parse(dest.todos);
+                        if (Array.isArray(parsed)) destTodos = parsed;
+                      } catch {}
+                    }
+                    if (destTodos.length === 0) return null;
+                    const doneCount = destTodos.filter((t) => t.completed).length;
+
+                    return (
+                      <View style={[styles.todosSection, { borderTopColor: isDarkMode ? '#24375D' : colors.border.muted }]}>
+                        <View style={styles.todosHeader}>
+                          <Ionicons name="checkbox-outline" size={13} color={colors.brand.blue} />
+                          <Typography variant="caption" color={colors.text.secondary} style={styles.todosHeaderText}>
+                            {language === 'en' ? 'To-Do' : 'Catatan / Checklist'} ({doneCount}/{destTodos.length})
+                          </Typography>
+                        </View>
+                        <View style={styles.todosList}>
+                          {destTodos.map((todo) => (
+                            <Pressable
+                              key={todo.id}
+                              onPress={(e) => {
+                                e.stopPropagation();
+                                onToggleTodo?.(dest.id, todo.id);
+                              }}
+                              style={styles.todoRow}
+                            >
+                              <Ionicons
+                                name={todo.completed ? 'checkmark-circle' : 'square-outline'}
+                                size={15}
+                                color={todo.completed ? colors.status.success : colors.text.muted}
+                                style={styles.todoCheckIcon}
+                              />
+                              <Typography
+                                variant="caption"
+                                color={todo.completed ? colors.text.muted : colors.text.primary}
+                                style={[
+                                  styles.todoText,
+                                  todo.completed && styles.todoTextCompleted,
+                                ]}
+                                numberOfLines={2}
+                              >
+                                {todo.text}
+                              </Typography>
+                            </Pressable>
+                          ))}
+                        </View>
+                      </View>
+                    );
+                  })()}
 
                   {/* Action Bar (Check-in button & Detail link) */}
                   <View style={styles.cardActions}>
@@ -544,5 +600,40 @@ const styles = StyleSheet.create({
   addCtaText: {
     marginLeft: 6,
     fontWeight: '700',
+  },
+  todosSection: {
+    marginTop: spacing[2],
+    paddingTop: spacing[2],
+    borderTopWidth: 1,
+  },
+  todosHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  todosHeaderText: {
+    fontWeight: '700',
+    fontSize: 11,
+    marginLeft: 4,
+  },
+  todosList: {
+    gap: 3,
+  },
+  todoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 2,
+  },
+  todoCheckIcon: {
+    marginRight: 6,
+  },
+  todoText: {
+    fontSize: 12,
+    lineHeight: 16,
+    flex: 1,
+  },
+  todoTextCompleted: {
+    textDecorationLine: 'line-through',
+    opacity: 0.6,
   },
 });

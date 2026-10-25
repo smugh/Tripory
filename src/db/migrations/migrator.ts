@@ -184,6 +184,25 @@ export const MIGRATIONS: MigrationStep[] = [
       removed_at TEXT NOT NULL
     );`,
   },
+  {
+    version: 9,
+    name: '0008_add_item_grouping_and_album_customizations',
+    sql: `
+      ALTER TABLE items ADD COLUMN parent_id TEXT;
+      ALTER TABLE items ADD COLUMN is_group INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE trip_items ADD COLUMN parent_id TEXT;
+      ALTER TABLE trip_items ADD COLUMN is_group INTEGER NOT NULL DEFAULT 0;
+      CREATE TABLE IF NOT EXISTS album_customizations (
+        trip_id TEXT PRIMARY KEY NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+        custom_title TEXT,
+        custom_notes TEXT,
+        custom_cover_path TEXT,
+        is_hidden INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_album_customizations_hidden ON album_customizations(is_hidden);
+    `,
+  },
 ];
 
 /**

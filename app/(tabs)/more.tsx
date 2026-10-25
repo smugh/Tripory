@@ -95,6 +95,15 @@ export default function SettingsScreen() {
       route: '/settings/privacy',
     },
     {
+      id: 'albums',
+      title: t.settings.menuAlbumsTitle,
+      subtitle: t.settings.menuAlbumsDesc,
+      icon: 'images',
+      iconColor: '#F59E0B',
+      iconBg: isDarkMode ? 'rgba(245, 158, 11, 0.15)' : '#FEF3C7',
+      route: '/settings/albums',
+    },
+    {
       id: 'about',
       title: t.settings.aboutSection,
       subtitle: format(t.settings.menuAboutDesc, { version: APP_CONFIG.version }),

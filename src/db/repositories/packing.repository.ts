@@ -62,7 +62,20 @@ export const packingRepository = {
 
   async deleteTripItem(id: string): Promise<void> {
     assertTripRecordEditable('trip_items', id);
+    // Hapus juga child items jika item ini adalah grup
+    db.delete(tripItems).where(eq(tripItems.parentId, id)).run();
     db.delete(tripItems).where(eq(tripItems.id, id)).run();
+  },
+
+  async updateGroupState(parentId: string, state: TripItemRecord['state']): Promise<void> {
+    assertTripRecordEditable('trip_items', parentId);
+    const now = new Date().toISOString();
+    const children = db.select().from(tripItems).where(eq(tripItems.parentId, parentId)).all();
+    for (const child of children) {
+      await this.updateItemState(child.id, state);
+    }
+    // Update juga status group parent itu sendiri
+    db.update(tripItems).set({ state, updatedAt: now }).where(eq(tripItems.id, parentId)).run();
   },
 
   /**

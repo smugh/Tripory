@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, Image, Pressable, Alert } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { spacing, radius, fontFamily, useThemeColors } from '@/core/theme';
 import { Typography, Button, Card, Badge, ScreenContainer } from '@/components/ui';
@@ -9,8 +9,10 @@ import { tripService } from '@/domains/trip/service';
 import { destinationRepository } from '@/db/repositories/destination.repository';
 import { packingRepository } from '@/db/repositories/packing.repository';
 import { momentRepository } from '@/db/repositories/moment.repository';
+import { albumRepository } from '@/db/repositories/album.repository';
 import { MomentRecord } from '@/db/schema/moments';
 import { DestinationRecord } from '@/db/schema/destinations';
+import { AlbumCustomizationRecord } from '@/db/schema/album-customizations';
 import { formatDateRange, formatTripDurationLabel } from '@/core/utils';
 import { getTripPresets, TripPreset } from '@/core/constants';
 import { useUIStore } from '@/stores/ui-store';
@@ -27,10 +29,26 @@ export default function HomeScreen() {
   const [destinations, setDestinations] = useState<DestinationRecord[]>([]);
   const [albumSortOrder, setAlbumSortOrder] = useState<'newest' | 'oldest'>('newest');
   const [albumViewMode, setAlbumViewMode] = useState<'grid' | 'list'>('grid');
+  const [albumCustomizations, setAlbumCustomizations] = useState<AlbumCustomizationRecord[]>([]);
 
-  const completedTripsList = useMemo(() => trips.filter((t) => t.status === 'completed'), [trips]);
+  const hiddenTripIds = useMemo(
+    () => new Set(albumCustomizations.filter((c) => c.isHidden === 1).map((c) => c.tripId)),
+    [albumCustomizations]
+  );
+  const customMap = useMemo(
+    () => new Map(albumCustomizations.map((c) => [c.tripId, c])),
+    [albumCustomizations]
+  );
+
+  const completedTripsList = useMemo(
+    () => trips.filter((t) => t.status === 'completed' && !hiddenTripIds.has(t.id)),
+    [trips, hiddenTripIds]
+  );
   const completedTripIds = useMemo(() => new Set(completedTripsList.map((trip) => trip.id)), [completedTripsList]);
-  const albumMoments = useMemo(() => moments.filter((moment) => completedTripIds.has(moment.tripId)), [moments, completedTripIds]);
+  const albumMoments = useMemo(
+    () => moments.filter((moment) => completedTripIds.has(moment.tripId) && !hiddenTripIds.has(moment.tripId)),
+    [moments, completedTripIds, hiddenTripIds]
+  );
   const sortedMoments = useMemo(() => {
     return [...albumMoments].sort((a, b) => {
       const timeA = new Date(a.capturedAt).getTime();
@@ -41,6 +59,9 @@ export default function HomeScreen() {
 
   // Helper to get cover photo for trip
   const getTripCoverPhoto = (tripId: string): string | null => {
+    const custom = customMap.get(tripId);
+    if (custom?.customCoverPath) return custom.customCoverPath;
+
     const tripMoment = moments.find(
       (m) => m.tripId === tripId && m.photoPath && !m.photoPath.startsWith('local://placeholder')
     );
@@ -119,21 +140,31 @@ export default function HomeScreen() {
     }
   };
 
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const [m, d] = await Promise.all([
-          momentRepository.getAll(),
-          destinationRepository.getAll(),
-        ]);
-        setMoments(m);
-        setDestinations(d);
-      } catch {
-        // Abaikan
-      }
+  const loadHomeData = useCallback(async () => {
+    try {
+      const [m, d, c] = await Promise.all([
+        momentRepository.getAll(),
+        destinationRepository.getAll(),
+        albumRepository.getAllCustomizations(),
+      ]);
+      setMoments(m);
+      setDestinations(d);
+      setAlbumCustomizations(c);
+    } catch {
+      // Abaikan
     }
-    loadData();
-  }, [trips]);
+  }, []);
+
+  useEffect(() => {
+    loadHomeData();
+  }, [trips, loadHomeData]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadHomeData();
+      refreshTrips();
+    }, [loadHomeData, refreshTrips])
+  );
 
   // 1-Tap Instant Trip Creator from Home Screen
   const handleQuickCreateFromPreset = async (preset: TripPreset) => {
@@ -579,7 +610,7 @@ export default function HomeScreen() {
                           style={styles.tripListTitle}
                           numberOfLines={1}
                         >
-                          {itemTrip.name}
+                          {customMap.get(itemTrip.id)?.customTitle || itemTrip.name}
                         </Typography>
                         <Badge
                           label={stage.label}
@@ -685,7 +716,7 @@ export default function HomeScreen() {
                     {/* Bottom: Body */}
                     <View style={styles.tripGridBody}>
                       <Typography variant="label" color={colors.brand.navy} style={styles.tripGridTitle} numberOfLines={1}>
-                        {itemTrip.name}
+                        {customMap.get(itemTrip.id)?.customTitle || itemTrip.name}
                       </Typography>
 
                       <View style={styles.tripGridMetaRow}>

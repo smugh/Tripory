@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { View, StyleSheet, FlatList, Modal, Alert, Pressable, ScrollView, Image, KeyboardAvoidingView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -39,6 +39,13 @@ export default function ItemsScreen() {
   const [itemCategory, setItemCategory] = useState<string>(categories[0] || 'Clothing');
   const [itemImageUri, setItemImageUri] = useState<string | null>(null);
   const [itemNotes, setItemNotes] = useState('');
+  const [itemIsGroup, setItemIsGroup] = useState(false);
+  const [itemParentId, setItemParentId] = useState<string | null>(null);
+
+  const availableGroups = useMemo(
+    () => itemsList.filter((it) => it.isGroup === 1 && it.id !== editingItem?.id),
+    [itemsList, editingItem]
+  );
 
   const loadItems = useCallback(async () => {
     try {
@@ -66,6 +73,8 @@ export default function ItemsScreen() {
     setItemCategory(categories[0] || 'Clothing');
     setItemImageUri(null);
     setItemNotes('');
+    setItemIsGroup(false);
+    setItemParentId(null);
     setIsModalOpen(true);
   };
 
@@ -75,6 +84,8 @@ export default function ItemsScreen() {
     setItemCategory(item.category);
     setItemImageUri(item.imageUri || null);
     setItemNotes(item.notes || '');
+    setItemIsGroup(item.isGroup === 1);
+    setItemParentId(item.parentId || null);
     setIsModalOpen(true);
   };
 
@@ -167,6 +178,8 @@ export default function ItemsScreen() {
           category: itemCategory,
           notes: itemNotes.trim() || null,
           imageUri: savedImageUri,
+          isGroup: itemIsGroup ? 1 : 0,
+          parentId: itemIsGroup ? null : (itemParentId || null),
         });
       } else {
         // Create new item (Create / C of CRUD)
@@ -176,6 +189,8 @@ export default function ItemsScreen() {
           quantity: 1,
           notes: itemNotes.trim() || null,
           imageUri: savedImageUri,
+          isGroup: itemIsGroup ? 1 : 0,
+          parentId: itemIsGroup ? null : (itemParentId || null),
         });
       }
 
@@ -309,81 +324,101 @@ export default function ItemsScreen() {
       <FlatList
         data={filteredItems}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <Pressable
-            onPress={() => handleOpenEditModal(item)}
-            style={({ pressed }) => [{ opacity: pressed ? 0.92 : 1 }]}
-          >
-            <Card
-              elevated
-              style={[
-                styles.itemCard,
-                { backgroundColor: themeColors.surface.card, borderColor: themeColors.border.default },
-              ]}
+        renderItem={({ item }) => {
+          const isGroup = item.isGroup === 1;
+          const childCount = itemsList.filter((it) => it.parentId === item.id).length;
+          const parentGroup = item.parentId ? itemsList.find((it) => it.id === item.parentId) : null;
+
+          return (
+            <Pressable
+              onPress={() => handleOpenEditModal(item)}
+              style={({ pressed }) => [{ opacity: pressed ? 0.92 : 1 }]}
             >
-              <View style={styles.itemRow}>
-                {item.imageUri ? (
-                  <Image source={{ uri: item.imageUri }} style={styles.itemThumbImage} resizeMode="cover" />
-                ) : (
-                  <View
-                    style={[
-                      styles.categoryIconCircle,
-                      { backgroundColor: isDarkMode ? themeColors.surface.muted : '#F0F4F8' },
-                    ]}
-                  >
-                    <Ionicons
-                      name={getCategoryIcon(item.category)}
-                      size={18}
-                      color={isDarkMode ? '#93C5FD' : themeColors.brand.navy}
-                    />
-                  </View>
-                )}
-
-                <View style={styles.itemInfo}>
-                  <Typography variant="body" color={themeColors.text.primary} style={styles.itemName}>
-                    {item.name}
-                  </Typography>
-                  <Typography variant="caption" color={themeColors.text.secondary} numberOfLines={1}>
-                    {item.notes ? item.notes : item.category}
-                  </Typography>
-                </View>
-
-                {/* Right Actions: Category Badge & Direct Action Buttons */}
-                <View style={styles.itemActionsRight}>
-                  <Badge label={item.category} variant="neutral" size="sm" />
-                  <View style={styles.iconButtonsRow}>
-                    <Pressable
+              <Card
+                elevated
+                style={[
+                  styles.itemCard,
+                  { backgroundColor: themeColors.surface.card, borderColor: isGroup ? themeColors.brand.blue : themeColors.border.default },
+                  isGroup && { borderWidth: 1.5 },
+                ]}
+              >
+                <View style={styles.itemRow}>
+                  {item.imageUri ? (
+                    <Image source={{ uri: item.imageUri }} style={styles.itemThumbImage} resizeMode="cover" />
+                  ) : (
+                    <View
                       style={[
-                        styles.iconBtn,
-                        { backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15)' : '#EFF6FF' },
+                        styles.categoryIconCircle,
+                        {
+                          backgroundColor: isGroup
+                            ? (isDarkMode ? 'rgba(56, 189, 248, 0.2)' : '#E0F2FE')
+                            : (isDarkMode ? themeColors.surface.muted : '#F0F4F8'),
+                        },
                       ]}
-                      hitSlop={8}
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        handleOpenEditModal(item);
-                      }}
                     >
-                      <Ionicons name="pencil" size={14} color={themeColors.brand.blue} />
-                    </Pressable>
-                    <Pressable
-                      style={[
-                        styles.iconBtn,
-                        { backgroundColor: isDarkMode ? 'rgba(239, 68, 68, 0.15)' : '#FEF2F2' },
-                      ]}
-                      hitSlop={8}
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        handleConfirmDelete(item);
-                      }}
-                    >
-                      <Ionicons name="trash-outline" size={15} color={themeColors.status.error} />
-                    </Pressable>
+                      <Ionicons
+                        name={isGroup ? 'cube' : getCategoryIcon(item.category)}
+                        size={18}
+                        color={isGroup ? themeColors.brand.blue : (isDarkMode ? '#93C5FD' : themeColors.brand.navy)}
+                      />
+                    </View>
+                  )}
+
+                  <View style={styles.itemInfo}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <Typography variant="body" color={themeColors.text.primary} style={styles.itemName}>
+                        {item.name}
+                      </Typography>
+                      {isGroup && (
+                        <Badge label={t.inventory.groupBadge} variant="accent" size="sm" />
+                      )}
+                    </View>
+                    <Typography variant="caption" color={themeColors.text.secondary} numberOfLines={1}>
+                      {isGroup
+                        ? format(t.inventory.groupItemsCount, { count: childCount })
+                        : parentGroup
+                        ? `↳ ${t.inventory.childBadge}: ${parentGroup.name}`
+                        : item.notes ? item.notes : item.category}
+                    </Typography>
+                  </View>
+
+                  {/* Right Actions: Category Badge & Direct Action Buttons */}
+                  <View style={styles.itemActionsRight}>
+                    <Badge label={item.category} variant="neutral" size="sm" />
+                    <View style={styles.iconButtonsRow}>
+                      <Pressable
+                        style={[
+                          styles.iconBtn,
+                          { backgroundColor: isDarkMode ? 'rgba(59, 130, 246, 0.15)' : '#EFF6FF' },
+                        ]}
+                        hitSlop={8}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          handleOpenEditModal(item);
+                        }}
+                      >
+                        <Ionicons name="pencil" size={14} color={themeColors.brand.blue} />
+                      </Pressable>
+                      <Pressable
+                        style={[
+                          styles.iconBtn,
+                          { backgroundColor: isDarkMode ? 'rgba(239, 68, 68, 0.15)' : '#FEF2F2' },
+                        ]}
+                        hitSlop={8}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          handleConfirmDelete(item);
+                        }}
+                      >
+                        <Ionicons name="trash-outline" size={15} color={themeColors.status.error} />
+                      </Pressable>
+                    </View>
                   </View>
                 </View>
-              </View>
-            </Card>
-          </Pressable>
-        )}
+              </Card>
+            </Pressable>
+          );
+        }}
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
@@ -486,6 +521,81 @@ export default function ItemsScreen() {
                       {t.inventory.photoChooseGallery}
                     </Typography>
                   </Pressable>
+                </View>
+              )}
+
+              {/* Item Type: Single vs Group Parent */}
+              <Typography variant="label" color={themeColors.text.primary} style={styles.inputLabel}>
+                {t.inventory.itemTypeLabel}
+              </Typography>
+              <View style={styles.typeSegmentRow}>
+                <Pressable
+                  style={[
+                    styles.typeSegmentBtn,
+                    { borderColor: themeColors.border.default, backgroundColor: isDarkMode ? themeColors.surface.muted : '#F8FAFC' },
+                    !itemIsGroup && { backgroundColor: themeColors.brand.blue, borderColor: themeColors.brand.blue },
+                  ]}
+                  onPress={() => setItemIsGroup(false)}
+                >
+                  <Ionicons name="cube-outline" size={16} color={!itemIsGroup ? '#FFFFFF' : themeColors.text.secondary} />
+                  <Typography variant="caption" color={!itemIsGroup ? '#FFFFFF' : themeColors.text.secondary} style={{ fontWeight: '700', marginLeft: 6 }}>
+                    {t.inventory.itemTypeSingle}
+                  </Typography>
+                </Pressable>
+
+                <Pressable
+                  style={[
+                    styles.typeSegmentBtn,
+                    { borderColor: themeColors.border.default, backgroundColor: isDarkMode ? themeColors.surface.muted : '#F8FAFC' },
+                    itemIsGroup && { backgroundColor: themeColors.brand.blue, borderColor: themeColors.brand.blue },
+                  ]}
+                  onPress={() => {
+                    setItemIsGroup(true);
+                    setItemParentId(null);
+                  }}
+                >
+                  <Ionicons name="folder-open-outline" size={16} color={itemIsGroup ? '#FFFFFF' : themeColors.text.secondary} />
+                  <Typography variant="caption" color={itemIsGroup ? '#FFFFFF' : themeColors.text.secondary} style={{ fontWeight: '700', marginLeft: 6 }}>
+                    {t.inventory.itemTypeGroup}
+                  </Typography>
+                </Pressable>
+              </View>
+
+              {!itemIsGroup && availableGroups.length > 0 && (
+                <View style={{ marginTop: spacing[3], marginBottom: spacing[2] }}>
+                  <Typography variant="label" color={themeColors.text.primary} style={styles.inputLabel}>
+                    {t.inventory.parentGroupLabel}
+                  </Typography>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexDirection: 'row', marginTop: 4 }}>
+                    <Pressable
+                      style={[
+                        styles.parentGroupPill,
+                        { borderColor: themeColors.border.default, backgroundColor: isDarkMode ? themeColors.surface.muted : '#F1F5F9' },
+                        itemParentId === null && { backgroundColor: themeColors.brand.blue, borderColor: themeColors.brand.blue },
+                      ]}
+                      onPress={() => setItemParentId(null)}
+                    >
+                      <Typography variant="caption" color={itemParentId === null ? '#FFFFFF' : themeColors.text.secondary} style={{ fontWeight: '600' }}>
+                        {t.inventory.noParent}
+                      </Typography>
+                    </Pressable>
+                    {availableGroups.map((grp: ItemRecord) => (
+                      <Pressable
+                        key={grp.id}
+                        style={[
+                          styles.parentGroupPill,
+                          { borderColor: themeColors.border.default, backgroundColor: isDarkMode ? themeColors.surface.muted : '#F1F5F9' },
+                          itemParentId === grp.id && { backgroundColor: themeColors.brand.blue, borderColor: themeColors.brand.blue },
+                        ]}
+                        onPress={() => setItemParentId(grp.id)}
+                      >
+                        <Ionicons name="cube" size={13} color={itemParentId === grp.id ? '#FFFFFF' : themeColors.brand.coral} style={{ marginRight: 4 }} />
+                        <Typography variant="caption" color={itemParentId === grp.id ? '#FFFFFF' : themeColors.text.primary} style={{ fontWeight: '600' }}>
+                          {grp.name}
+                        </Typography>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
                 </View>
               )}
 
@@ -730,5 +840,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing[2],
     marginTop: spacing[4],
+  },
+  typeSegmentRow: {
+    flexDirection: 'row',
+    gap: spacing[2],
+    marginBottom: spacing[3],
+  },
+  typeSegmentBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: radius.md,
+    borderWidth: 1,
+  },
+  parentGroupPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    marginRight: 8,
   },
 });

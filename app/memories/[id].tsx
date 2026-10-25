@@ -9,6 +9,7 @@ import { tripRepository } from '@/db/repositories/trip.repository';
 import { destinationRepository } from '@/db/repositories/destination.repository';
 import { momentRepository } from '@/db/repositories/moment.repository';
 import { packingRepository } from '@/db/repositories/packing.repository';
+import { albumRepository } from '@/db/repositories/album.repository';
 import { mediaService } from '@/services/media';
 import { TripRecord } from '@/db/schema/trips';
 import { DestinationRecord } from '@/db/schema/destinations';
@@ -43,9 +44,16 @@ export default function TravelMemoryScreen() {
       const tripRecord = await tripRepository.getById(id);
       if (!tripRecord) { setTrip(null); return; }
       const isDropOff = (it: { category?: string | null }) => it.category?.toLowerCase() === 'drop off';
+      const customization = await albumRepository.getCustomization(id);
+
       if (tripRecord.status === 'completed') {
         const archive = await archiveRepository.getCompleted(id);
-        setTrip(archive.trip);
+        const finalTrip = { ...archive.trip };
+        if (customization?.customTitle) finalTrip.name = customization.customTitle;
+        if (customization?.customNotes) finalTrip.notes = customization.customNotes;
+        if (customization?.customCoverPath) finalTrip.coverPhotoPath = customization.customCoverPath;
+
+        setTrip(finalTrip);
         setIsEditing(false);
         setDestinations(archive.destinations);
         setMoments(archive.moments);
@@ -53,8 +61,13 @@ export default function TravelMemoryScreen() {
         setDropOffItems(archive.items.filter(isDropOff));
         return;
       }
-      setTrip(tripRecord);
-      setNotesDraft(tripRecord.notes ?? '');
+      const finalTrip = { ...tripRecord };
+      if (customization?.customTitle) finalTrip.name = customization.customTitle;
+      if (customization?.customNotes) finalTrip.notes = customization.customNotes;
+      if (customization?.customCoverPath) finalTrip.coverPhotoPath = customization.customCoverPath;
+
+      setTrip(finalTrip);
+      setNotesDraft(finalTrip.notes ?? '');
       const [tripStops, tripMoments, tripItems] = await Promise.all([
         destinationRepository.getByTripId(id),
         momentRepository.getByTripId(id),

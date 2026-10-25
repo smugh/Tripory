@@ -8,6 +8,8 @@ export interface PersonalItem {
   category: string;
   quantity: number;
   notes?: string | null;
+  parentId?: string | null;
+  isGroup?: number;
   createdAt: string;
   updatedAt: string;
 }

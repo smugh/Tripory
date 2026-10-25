@@ -25,7 +25,17 @@ export const itemRepository = {
     return newRecord as ItemRecord;
   },
 
+  async getGroups(): Promise<ItemRecord[]> {
+    return db.select().from(items).where(eq(items.isGroup, 1)).orderBy(desc(items.createdAt)).all();
+  },
+
+  async getChildren(parentId: string): Promise<ItemRecord[]> {
+    return db.select().from(items).where(eq(items.parentId, parentId)).orderBy(desc(items.createdAt)).all();
+  },
+
   async delete(id: string): Promise<void> {
+    // Lepaskan relasi child jika parent group dihapus
+    db.update(items).set({ parentId: null }).where(eq(items.parentId, id)).run();
     db.delete(items).where(eq(items.id, id)).run();
   },
 

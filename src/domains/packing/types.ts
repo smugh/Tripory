@@ -17,6 +17,8 @@ export interface TripItemEntity {
   priority: ItemPriority;
   quantity: number;
   notes?: string | null;
+  parentId?: string | null;
+  isGroup?: number;
   createdAt: string;
   updatedAt: string;
 }

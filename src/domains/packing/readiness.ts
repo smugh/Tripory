@@ -10,7 +10,11 @@ export function computeReadiness(
   items: TripItemEntity[],
   language: 'en' | 'id' = 'en'
 ): PackingSummary {
-  const totalItems = items.length;
+  const hasGroupsWithChildren = items.some((i) => i.isGroup === 1 && items.some((c) => c.parentId === i.id));
+  const countableItems = hasGroupsWithChildren
+    ? items.filter((i) => i.isGroup !== 1)
+    : items;
+  const totalItems = countableItems.length;
   if (totalItems === 0) {
     return {
       totalItems: 0,
@@ -22,12 +26,12 @@ export function computeReadiness(
     };
   }
 
-  const packedItems = items.filter((i) => i.state !== 'planned' && i.state !== 'missing');
+  const packedItems = countableItems.filter((i) => i.state !== 'planned' && i.state !== 'missing');
   const packedCount = packedItems.length;
   const percentage = Math.round((packedCount / totalItems) * 100);
 
   // Blocker kritis: barang must_have yang statusnya masih 'planned'
-  const criticalBlockers = items.filter((i) => i.priority === 'must_have' && (i.state === 'planned' || i.state === 'missing'));
+  const criticalBlockers = countableItems.filter((i) => i.priority === 'must_have' && (i.state === 'planned' || i.state === 'missing'));
   const isReadyForDeparture = criticalBlockers.length === 0;
 
   let statusLabel = language === 'en' ? 'Ready to Go' : 'Siap Berangkat';

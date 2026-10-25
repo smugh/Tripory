@@ -23,6 +23,8 @@ export const tripItems = sqliteTable('trip_items', {
   }).notNull().default('must_have'),
   quantity: integer('quantity').notNull().default(1),
   notes: text('notes'),
+  parentId: text('parent_id'),
+  isGroup: integer('is_group').notNull().default(0),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 });

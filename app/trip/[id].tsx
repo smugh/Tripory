@@ -275,6 +275,48 @@ export default function TripDetailScreen() {
 
   const handleAddInventoryItem = async (inventoryItem: ItemRecord) => {
     if (!id) return;
+
+    if (inventoryItem.isGroup === 1) {
+      // Menambahkan 1 paket group beserta child items 1, 2, 3 dst.
+      const childItems = inventoryItems.filter((c) => c.parentId === inventoryItem.id);
+      try {
+        const parentTripItem = await packingRepository.addTripItem({
+          tripId: id,
+          itemId: inventoryItem.id,
+          customName: inventoryItem.name,
+          category: inventoryItem.category,
+          plannedDestinationId: targetDestinationForNewItem,
+          state: 'planned',
+          priority: 'must_have',
+          quantity: 1,
+          isGroup: 1,
+          parentId: null,
+          notes: inventoryItem.notes,
+        });
+
+        for (const child of childItems) {
+          await packingRepository.addTripItem({
+            tripId: id,
+            itemId: child.id,
+            customName: child.name,
+            category: child.category,
+            plannedDestinationId: targetDestinationForNewItem,
+            state: 'planned',
+            priority: 'must_have',
+            quantity: child.quantity,
+            isGroup: 0,
+            parentId: parentTripItem.id,
+            notes: child.notes,
+          });
+        }
+        setIsInventoryPickerOpen(false);
+        await loadTripData();
+      } catch {
+        Alert.alert(language === 'en' ? 'Error' : 'Gagal', 'Could not add group package.');
+      }
+      return;
+    }
+
     const duplicate = items.some((entry) =>
       entry.itemId === inventoryItem.id && entry.plannedDestinationId === targetDestinationForNewItem
     );
@@ -295,6 +337,8 @@ export default function TripDetailScreen() {
         state: 'planned',
         priority: 'must_have',
         quantity: inventoryItem.quantity,
+        isGroup: 0,
+        parentId: null,
         notes: inventoryItem.notes,
       });
       setIsInventoryPickerOpen(false);
@@ -302,6 +346,157 @@ export default function TripDetailScreen() {
     } catch {
       Alert.alert(language === 'en' ? 'Error' : 'Gagal', 'Could not add item from inventory.');
     }
+  };
+
+  const handleToggleGroupPack = async (group: TripItemRecord, packAll: boolean) => {
+    try {
+      await packingRepository.updateGroupState(group.id, packAll ? 'packed' : 'planned');
+      await loadTripData();
+    } catch {
+      Alert.alert(language === 'en' ? 'Error' : 'Gagal', 'Could not update group items.');
+    }
+  };
+
+  const renderItemRowsWithGroups = (itemList: TripItemRecord[]) => {
+    const tripGroups = items.filter((it) => it.isGroup === 1);
+    const standaloneItems = itemList.filter((it) => it.isGroup !== 1 && !it.parentId);
+
+    const activeGroups = tripGroups.map((group) => {
+      const allGroupChildren = items.filter((it) => it.parentId === group.id);
+      const visibleChildren = itemList.filter((it) => it.parentId === group.id);
+      return {
+        group,
+        allChildren: allGroupChildren,
+        visibleChildren,
+      };
+    }).filter(({ visibleChildren }) => {
+      if (packingFilter === 'all') return true;
+      return visibleChildren.length > 0;
+    });
+
+    if (activeGroups.length === 0 && standaloneItems.length === 0) {
+      return (
+        <View style={styles.emptyItemsBox}>
+          <Typography variant="caption" color={colors.text.muted}>
+            {language === 'en' ? 'No items in this view. Add only what you want to bring.' : 'Tidak ada barang di tampilan ini. Tambahkan hanya barang yang ingin dibawa.'}
+          </Typography>
+        </View>
+      );
+    }
+
+    return (
+      <View>
+        {activeGroups.map(({ group, allChildren, visibleChildren }) => {
+          const packedCount = allChildren.filter((c) => ['packed', 'available', 'returned', 'used'].includes(c.state)).length;
+          const allPacked = allChildren.length > 0 && packedCount === allChildren.length;
+
+          return (
+            <View
+              key={group.id}
+              style={[
+                styles.groupContainer,
+                {
+                  backgroundColor: isDarkMode ? '#1E293B' : '#F8FAFC',
+                  borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+                },
+              ]}
+            >
+              <View style={styles.groupHeaderRow}>
+                <View
+                  style={[
+                    styles.groupIconCircle,
+                    { backgroundColor: isDarkMode ? 'rgba(56, 189, 248, 0.2)' : '#E0F2FE' },
+                  ]}
+                >
+                  <Ionicons name="cube" size={17} color={colors.brand.blue} />
+                </View>
+
+                <View style={{ flex: 1, marginRight: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <Typography variant="body" color={colors.brand.navy} style={{ fontWeight: '700' }}>
+                      {group.customName}
+                    </Typography>
+                    <Badge label="PAKET" variant="accent" size="sm" />
+                  </View>
+                  <Typography variant="caption" color={colors.text.muted} style={{ marginTop: 2 }}>
+                    {allChildren.length > 0
+                      ? `${packedCount}/${allChildren.length} ${language === 'en' ? 'Packed' : 'Dikemas'}`
+                      : group.category}
+                  </Typography>
+                </View>
+
+                {allChildren.length > 0 && (
+                  <Pressable
+                    style={[
+                      styles.groupBatchBtn,
+                      {
+                        backgroundColor: allPacked
+                          ? (isDarkMode ? 'rgba(16, 185, 129, 0.2)' : '#DCFCE7')
+                          : colors.brand.blue,
+                      },
+                    ]}
+                    onPress={() => handleToggleGroupPack(group, !allPacked)}
+                  >
+                    <Ionicons
+                      name={allPacked ? 'checkmark-circle' : 'bag-check-outline'}
+                      size={13}
+                      color={allPacked ? '#10B981' : '#FFFFFF'}
+                    />
+                    <Typography
+                      variant="caption"
+                      color={allPacked ? '#10B981' : '#FFFFFF'}
+                      style={{ fontWeight: '700', marginLeft: 4, fontSize: 11 }}
+                    >
+                      {allPacked
+                        ? (language === 'en' ? 'Unpack All' : 'Keluarkan')
+                        : (language === 'en' ? 'Pack All' : 'Kemas Semua')}
+                    </Typography>
+                  </Pressable>
+                )}
+
+                <Pressable
+                  style={styles.groupMenuBtn}
+                  onPress={() => setActiveItemMenu(group)}
+                  hitSlop={8}
+                >
+                  <Ionicons name="ellipsis-vertical" size={16} color={colors.text.muted} />
+                </Pressable>
+              </View>
+
+              <View style={styles.groupChildrenList}>
+                {visibleChildren.map((childItem) => (
+                  <View key={childItem.id} style={styles.groupChildRowWrapper}>
+                    <View style={[styles.childIndentGuide, { borderColor: isDarkMode ? '#475569' : '#CBD5E1' }]} />
+                    <View style={{ flex: 1 }}>
+                      <PackingItemRow
+                        item={childItem}
+                        imageUri={getPackingItemImage(childItem)}
+                        destinationName={destinations.find((destination) => destination.id === childItem.plannedDestinationId)?.name}
+                        busy={packingTransitionItemId !== null}
+                        onPack={(bounds) => handleTogglePack(childItem, bounds)}
+                        onMenu={() => setActiveItemMenu(childItem)}
+                      />
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </View>
+          );
+        })}
+
+        {standaloneItems.map((item) => (
+          <PackingItemRow
+            key={item.id}
+            item={item}
+            imageUri={getPackingItemImage(item)}
+            destinationName={destinations.find((destination) => destination.id === item.plannedDestinationId)?.name}
+            busy={packingTransitionItemId !== null}
+            onPack={(bounds) => handleTogglePack(item, bounds)}
+            onMenu={() => setActiveItemMenu(item)}
+          />
+        ))}
+      </View>
+    );
   };
 
   const handleAddTripItem = async () => {
@@ -907,28 +1102,7 @@ export default function TripDetailScreen() {
                   />
                 </View>
 
-                {filteredItems.length === 0 ? (
-                  <View style={styles.emptyItemsBox}>
-                    <Typography variant="caption" color={colors.text.muted}>
-                      {language === 'en' ? 'No items in this view. Add only what you want to bring.' : 'Tidak ada barang di tampilan ini. Tambahkan hanya barang yang ingin dibawa.'}
-                    </Typography>
-                  </View>
-                ) : (
-                  filteredItems
-                    .map((item) => {
-                      return (
-                        <PackingItemRow
-                          key={item.id}
-                          item={item}
-                          imageUri={getPackingItemImage(item)}
-                          destinationName={destinations.find((destination) => destination.id === item.plannedDestinationId)?.name}
-                          busy={packingTransitionItemId !== null}
-                          onPack={(bounds) => handleTogglePack(item, bounds)}
-                          onMenu={() => setActiveItemMenu(item)}
-                        />
-                      );
-                    })
-                )}
+                {renderItemRowsWithGroups(filteredItems)}
 
                 {/* Add item inline with Drop Off Mode toggle */}
                 <View style={styles.addItemBox}>
@@ -1108,26 +1282,7 @@ export default function TripDetailScreen() {
 
                         {/* Mapped Items for this Stop */}
                         <View style={styles.destGroupItems}>
-                          {destItems.length === 0 ? (
-                            <Typography variant="caption" color={colors.text.muted} style={{ fontStyle: 'italic', marginVertical: 8 }}>
-                              {language === 'en'
-                                ? 'No stop-specific items needed.'
-                                : 'Tidak perlu barang khusus untuk destinasi ini.'}
-                            </Typography>
-                          ) : (
-                            destItems.map((item) => {
-                              return (
-                                <PackingItemRow
-                                  key={item.id}
-                                  item={item}
-                                  imageUri={getPackingItemImage(item)}
-                                  busy={packingTransitionItemId !== null}
-                                  onPack={(bounds) => handleTogglePack(item, bounds)}
-                                  onMenu={() => setActiveItemMenu(item)}
-                                />
-                              );
-                            })
-                          )}
+                          {renderItemRowsWithGroups(destItems)}
                         </View>
                         <Button
                           label={language === 'en' ? '+ Add from Inventory' : '+ Tambah dari Inventaris'}
@@ -1412,19 +1567,47 @@ export default function TripDetailScreen() {
             <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 380 }}>
               {inventoryItems
                 .filter((entry) => entry.name.toLocaleLowerCase().includes(inventorySearch.trim().toLocaleLowerCase()))
-                .map((entry) => (
-                  <Pressable
-                    key={entry.id}
-                    onPress={() => handleAddInventoryItem(entry)}
-                    style={[styles.inventoryPickerRow, { borderBottomColor: colors.border.muted }]}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Typography variant="label" color={colors.text.primary}>{entry.name}</Typography>
-                      <Typography variant="caption" color={colors.text.muted}>{entry.category} · {language === 'en' ? 'Qty' : 'Jumlah'}: {entry.quantity}</Typography>
-                    </View>
-                    <Ionicons name="add-circle" size={23} color={colors.brand.coral} />
-                  </Pressable>
-                ))}
+                .map((entry) => {
+                  const isGroup = entry.isGroup === 1;
+                  const childCount = inventoryItems.filter((c) => c.parentId === entry.id).length;
+                  const parentGroup = entry.parentId ? inventoryItems.find((p) => p.id === entry.parentId) : null;
+
+                  return (
+                    <Pressable
+                      key={entry.id}
+                      onPress={() => handleAddInventoryItem(entry)}
+                      style={[
+                        styles.inventoryPickerRow,
+                        { borderBottomColor: colors.border.muted },
+                        isGroup && { backgroundColor: isDarkMode ? 'rgba(56, 189, 248, 0.1)' : '#F0F9FF' },
+                      ]}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          <Typography variant="label" color={colors.text.primary}>{entry.name}</Typography>
+                          {isGroup && (
+                            <Badge label={`PAKET (${childCount} item)`} variant="accent" size="sm" />
+                          )}
+                        </View>
+                        <Typography variant="caption" color={colors.text.muted}>
+                          {isGroup
+                            ? (language === 'en' ? `${childCount} bundled items` : `${childCount} barang dalam paket`)
+                            : parentGroup
+                            ? `↳ ${parentGroup.name}`
+                            : `${entry.category} · ${language === 'en' ? 'Qty' : 'Jumlah'}: ${entry.quantity}`}
+                        </Typography>
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        {isGroup && (
+                          <Typography variant="caption" color={colors.brand.coral} style={{ fontWeight: '700' }}>
+                            {language === 'en' ? '+ Add Bundle' : '+ Tambah Paket'}
+                          </Typography>
+                        )}
+                        <Ionicons name="add-circle" size={23} color={colors.brand.coral} />
+                      </View>
+                    </Pressable>
+                  );
+                })}
               {inventoryItems.filter((entry) => entry.name.toLocaleLowerCase().includes(inventorySearch.trim().toLocaleLowerCase())).length === 0 && (
                 <Typography variant="body" color={colors.text.muted} style={{ paddingVertical: spacing[4], textAlign: 'center' }}>
                   {language === 'en' ? 'No inventory items found.' : 'Barang tidak ditemukan di inventaris.'}
@@ -2454,5 +2637,55 @@ const styles = StyleSheet.create({
   },
   actionTextBox: {
     flex: 1,
+  },
+  groupContainer: {
+    borderRadius: radius.md,
+    borderWidth: 1,
+    marginBottom: spacing[2],
+    overflow: 'hidden',
+  },
+  groupHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[3],
+  },
+  groupIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing[2],
+  },
+  groupBatchBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: radius.full,
+    marginRight: 6,
+  },
+  groupMenuBtn: {
+    padding: 6,
+  },
+  groupChildrenList: {
+    paddingLeft: spacing[2],
+    paddingRight: spacing[2],
+    paddingBottom: spacing[2],
+  },
+  groupChildRowWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  childIndentGuide: {
+    width: 14,
+    height: '100%',
+    borderLeftWidth: 2,
+    borderBottomWidth: 2,
+    borderBottomLeftRadius: 6,
+    marginLeft: spacing[2],
+    marginRight: 2,
+    marginBottom: 16,
   },
 });

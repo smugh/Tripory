@@ -5,3 +5,4 @@ export * from './trip-items';
 export * from './destination-usages';
 export * from './moments';
 export * from './app-metadata';
+export * from './album-customizations';

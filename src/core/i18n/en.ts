@@ -260,6 +260,15 @@ export const en = {
     understood: 'Understood',
 
     // Settings Menu List Subtitles
+    menuGuideTitle: 'User Manual Guide',
+    menuGuideDesc: 'Step-by-step visual guide on using Tripory',
+    menuBadgeGuide: 'Comprehensive',
+    menuSearchPlaceholder: 'Search settings & features...',
+    menuSearchClear: 'Clear',
+    menuSearchEmpty: 'No settings matching "{query}"',
+    menuSearchEmptyDesc: 'Try another keyword or explore the related guide topics below:',
+    menuRelatedGuides: 'Related Guide Topics',
+    openGuideBtn: 'Open Guide',
     menuCategoriesDesc: 'Add or remove inventory & packing categories',
     menuPermissionsDesc: 'Camera, Photos, Location, Email & Clock',
     menuBackupDesc: 'Offline SQLite backup and data restore',
@@ -692,6 +701,31 @@ export const en = {
     successMsgAll: 'All items were verified back home. Your trip memories have been securely archived!',
     successMsgMissing: 'Trip archived successfully. Note: {count} unreturned items were recorded in the journey archive.',
     closingTrip: 'Closing trip...',
+  },
+
+  // User Manual Guide
+  guide: {
+    screenTitle: 'User Manual Guide',
+    heroTitle: 'How to Use Tripory',
+    heroSubtitle: 'Step-by-step visual manual for every feature and workflow.',
+    searchPlaceholder: 'Search topics, features, tips...',
+    filterAll: 'All Topics',
+    filterTrips: 'Trips & Stops',
+    filterPacking: 'Packing & Luggage',
+    filterAgenda: 'Agenda (v1.2)',
+    filterMemories: 'Memories & Album',
+    filterSettings: 'Settings & Privacy',
+    expandAll: 'Expand All',
+    collapseAll: 'Collapse All',
+    tipLabel: 'PRO TIP',
+    stepPrefix: 'Step {step}',
+    tapToPreview: 'Tap image to view full screen preview',
+    screenshotModalTitle: 'Visual Screen Preview',
+    closeModal: 'Close',
+    emptyTitle: 'No Guide Topics Found',
+    emptyDesc: 'No topics matched "{query}". Try searching for keywords like "pack", "agenda", "roadmap", "receipt", or "backup".',
+    clearSearchBtn: 'Reset Search',
+    quickActionBtn: 'Open Feature →',
   },
 };
 

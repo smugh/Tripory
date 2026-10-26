@@ -184,6 +184,20 @@ export default function RootLayout() {
             headerBackTitle: t.trip.back,
           }}
         />
+        <Stack.Screen
+          name="settings/albums"
+          options={{
+            title: t.settings.menuAlbumsTitle,
+            headerBackTitle: t.trip.back,
+          }}
+        />
+        <Stack.Screen
+          name="settings/guide"
+          options={{
+            title: t.settings.menuGuideTitle,
+            headerBackTitle: t.trip.back,
+          }}
+        />
       </Stack>}
 
       {/* Branded Splash Screen Overlay with Primary Logo Centered */}

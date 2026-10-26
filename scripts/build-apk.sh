@@ -8,14 +8,14 @@ export PATH="$ANDROID_HOME/platform-tools:$PATH"
 mkdir -p "$DIR/release"
 
 echo "========================================================"
-echo "           Building Tripory APK v1.0.3                 "
+echo "           Building Tripory APK v1.2.0                 "
 echo "========================================================"
 
 cd "$DIR/android"
 ./gradlew assembleRelease
 
 APK_SOURCE="$DIR/android/app/build/outputs/apk/release/app-release.apk"
-APK_TARGET="$DIR/release/Tripory-v1.0.3.apk"
+APK_TARGET="$DIR/release/Tripory-v1.2.0.apk"
 
 if [ -f "$APK_SOURCE" ]; then
   cp "$APK_SOURCE" "$APK_TARGET"

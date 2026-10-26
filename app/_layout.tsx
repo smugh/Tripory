@@ -115,6 +115,12 @@ export default function RootLayout() {
             presentation: 'modal',
           }}
         />
+        <Stack.Screen name="agenda/index" options={{ title: t.planning.allAgendas, headerBackTitle: t.trip.back }} />
+        <Stack.Screen
+          name="agenda/new"
+          options={{ title: t.agenda.screenTitle, presentation: 'modal', headerBackTitle: t.trip.back }}
+        />
+        <Stack.Screen name="agenda/[id]" options={{ title: t.planning.agenda, headerBackTitle: t.trip.back }} />
         <Stack.Screen
           name="destination/[id]"
           options={{
@@ -224,7 +230,7 @@ export default function RootLayout() {
 
           <View style={styles.splashFooter}>
             <Typography variant="caption" color={themeColors.text.muted}>
-              Tripory v1.0.3 • Offline-First Travel Companion
+              Tripory v1.2.0 • Offline-First Travel Companion
             </Typography>
           </View>
         </Animated.View>

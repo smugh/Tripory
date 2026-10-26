@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, Pressable, Image } from 'react-native';
+import { View, StyleSheet, Pressable, Image, Modal } from 'react-native';
 import { Tabs, useRouter } from 'expo-router';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,11 +14,13 @@ export default function TabLayout() {
   const isDarkMode = useUIStore((s) => s.isDarkMode);
   const { t } = useI18n();
   const insets = useSafeAreaInsets();
+  const [isCreateChooserOpen, setCreateChooserOpen] = React.useState(false);
 
   const bottomInset = Math.max(insets.bottom, 10);
   const tabHeight = 62 + bottomInset;
 
   return (
+    <>
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: colors.brand.coral,
@@ -96,7 +98,7 @@ export default function TabLayout() {
             <Pressable
               {...restProps}
               style={[style, styles.centerTabPressable]}
-              onPress={() => router.push('/trip/new')}
+              onPress={() => setCreateChooserOpen(true)}
               accessibilityLabel={t.tabs.create}
               accessibilityRole="button"
             >
@@ -127,7 +129,7 @@ export default function TabLayout() {
         listeners={{
           tabPress: (e) => {
             e.preventDefault();
-            router.push('/trip/new');
+            setCreateChooserOpen(true);
           },
         }}
       />
@@ -162,6 +164,24 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
+    <Modal transparent visible={isCreateChooserOpen} animationType="fade" onRequestClose={() => setCreateChooserOpen(false)}>
+      <Pressable style={[styles.modalBackdrop, { paddingBottom: Math.max(16, insets.bottom + 8) }]} onPress={() => setCreateChooserOpen(false)}>
+        <Pressable onPress={(event) => event.stopPropagation()} style={[styles.chooser, { backgroundColor: colors.surface.card }]}>
+          <Typography variant="h3" color={colors.brand.navy} style={styles.chooserTitle}>{t.planning.chooseTitle}</Typography>
+          <Pressable accessibilityRole="button" onPress={() => { setCreateChooserOpen(false); router.push('/trip/new'); }} style={[styles.choice, { borderColor: colors.border.default }]}>
+            <View style={[styles.choiceIcon, { backgroundColor: colors.surface.muted }]}><Ionicons name="map-outline" size={22} color={colors.brand.blue} /></View>
+            <View style={styles.choiceText}><Typography variant="label" color={colors.text.primary}>{t.planning.chooseTrip}</Typography><Typography variant="caption" color={colors.text.secondary}>{t.planning.chooseTripDesc}</Typography></View>
+            <Ionicons name="chevron-forward" size={18} color={colors.text.muted} />
+          </Pressable>
+          <Pressable accessibilityRole="button" onPress={() => { setCreateChooserOpen(false); router.push('/agenda/new' as any); }} style={[styles.choice, { borderColor: colors.border.default }]}>
+            <View style={[styles.choiceIcon, { backgroundColor: colors.surface.muted }]}><Ionicons name="list-outline" size={22} color={colors.brand.coral} /></View>
+            <View style={styles.choiceText}><Typography variant="label" color={colors.text.primary}>{t.planning.chooseAgenda}</Typography><Typography variant="caption" color={colors.text.secondary}>{t.planning.chooseAgendaDesc}</Typography></View>
+            <Ionicons name="chevron-forward" size={18} color={colors.text.muted} />
+          </Pressable>
+        </Pressable>
+      </Pressable>
+    </Modal>
+    </>
   );
 }
 
@@ -194,4 +214,10 @@ const styles = StyleSheet.create({
     marginTop: 3,
     letterSpacing: 0.2,
   },
+  modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(4, 12, 28, 0.45)', padding: 16 },
+  chooser: { width: '100%', borderRadius: 20, padding: 18, paddingBottom: 24 },
+  chooserTitle: { fontWeight: '800', marginBottom: 14 },
+  choice: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderRadius: 14, paddingHorizontal: 12, marginTop: 8 },
+  choiceIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 12 },
+  choiceText: { flex: 1, gap: 3 },
 });

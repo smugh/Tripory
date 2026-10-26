@@ -4,3 +4,4 @@ export * from './item.repository';
 export * from './packing.repository';
 export * from './moment.repository';
 export * from './album.repository';
+export * from './agenda.repository';

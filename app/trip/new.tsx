@@ -12,6 +12,8 @@ import { getTripPresets, TripPreset } from '@/core/constants';
 import { useUIStore } from '@/stores/ui-store';
 import { useActiveInputStore } from '@/stores/active-input-store';
 import { useI18n } from '@/core/i18n';
+import { CreateTypeTabs } from '@/components/agenda';
+import { usePlanningDraftStore } from '@/stores/planning-draft-store';
 
 export default function NewTripScreen() {
   const router = useRouter();
@@ -20,6 +22,9 @@ export default function NewTripScreen() {
   const { t, format, language } = useI18n();
 
   const presets = getTripPresets(language);
+  const tripDraft = usePlanningDraftStore((s) => s.trip);
+  const setTripDraft = usePlanningDraftStore((s) => s.setTrip);
+  const clearTripDraft = usePlanningDraftStore((s) => s.clearTrip);
 
   // Helper formatting YYYY-MM-DD
   const formatDateYmd = (d: Date) => d.toISOString().split('T')[0];
@@ -40,14 +45,15 @@ export default function NewTripScreen() {
 
   // State: Template minimize by default as requested
   const [isTemplateExpanded, setIsTemplateExpanded] = useState(false);
-  const [selectedPreset, setSelectedPreset] = useState<TripPreset | null>(presets[0]);
-  const [name, setName] = useState(presets[0].title);
-  const [destination, setDestination] = useState(presets[0].destination);
-  const [startDate, setStartDate] = useState(formatDateYmd(tomorrow));
-  const [endDate, setEndDate] = useState(computeEndDate(formatDateYmd(tomorrow), presets[0].durationDays));
+  const initialPreset = presets.find((preset) => preset.id === tripDraft?.selectedPresetId) ?? presets[0];
+  const [selectedPreset, setSelectedPreset] = useState<TripPreset | null>(initialPreset);
+  const [name, setName] = useState(tripDraft?.name ?? initialPreset.title);
+  const [destination, setDestination] = useState(tripDraft?.destination ?? initialPreset.destination);
+  const [startDate, setStartDate] = useState(tripDraft?.startDate ?? formatDateYmd(tomorrow));
+  const [endDate, setEndDate] = useState(tripDraft?.endDate ?? computeEndDate(formatDateYmd(tomorrow), initialPreset.durationDays));
   const [activePicker, setActivePicker] = useState<'departure' | 'end' | null>(null);
-  const [notes, setNotes] = useState('');
-  const [includeStarterPack, setIncludeStarterPack] = useState(true);
+  const [notes, setNotes] = useState(tripDraft?.notes ?? '');
+  const [includeStarterPack, setIncludeStarterPack] = useState(tripDraft?.includeStarterPack ?? true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const scrollRef = useRef<React.ElementRef<typeof ScrollView>>(null);
   const keyboardHeight = useActiveInputStore((s) => s.keyboardHeight);
@@ -58,6 +64,14 @@ export default function NewTripScreen() {
       useActiveInputStore.getState().setActiveScrollRef(null);
     };
   }, []);
+
+  React.useEffect(() => {
+    setTripDraft({
+      name, destination, startDate, endDate, notes,
+      selectedPresetId: selectedPreset?.id ?? null,
+      includeStarterPack,
+    });
+  }, [name, destination, startDate, endDate, notes, selectedPreset, includeStarterPack, setTripDraft]);
 
   // View-only auto-computed duration response
   const durationDays = useMemo(() => calculateDurationDays(startDate, endDate), [startDate, endDate]);
@@ -138,6 +152,7 @@ export default function NewTripScreen() {
         }
       }
 
+      clearTripDraft();
       router.replace(`/trip/${trip.id}`);
     } catch (err) {
       Alert.alert(t.newTrip.alertCreateError, err instanceof Error ? err.message : 'Error');
@@ -161,6 +176,7 @@ export default function NewTripScreen() {
         onScroll={(e) => useActiveInputStore.getState().setActiveScrollY(e.nativeEvent.contentOffset.y)}
         scrollEventThrottle={16}
       >
+        <CreateTypeTabs active="trip" />
         {/* Wizard Header */}
         <View style={styles.header}>
           <Typography variant="h2" color={themeColors.brand.navy} style={styles.headerTitle}>

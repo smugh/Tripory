@@ -5,4 +5,7 @@ export const ROUTES = {
   MORE: '/more',
   TRIP_DETAIL: (id: string) => `/trip/${id}` as const,
   TRIP_NEW: '/trip/new',
+  AGENDAS: '/agenda',
+  AGENDA_NEW: '/agenda/new',
+  AGENDA_DETAIL: (id: string) => `/agenda/${id}` as const,
 } as const;

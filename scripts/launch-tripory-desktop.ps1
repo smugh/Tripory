@@ -59,7 +59,7 @@ public class DesktopLauncher {
 
         PROCESS_INFORMATION pi;
         string cmd = "\"" + exePath + "\" " + args;
-        bool ok = CreateProcess(null, cmd, IntPtr.Zero, IntPtr.Zero, false, 0, IntPtr.Zero, workingDir, ref si, out pi);
+        bool ok = CreateProcess(null, cmd, IntPtr.Zero, IntPtr.Zero, false, 0x00000010, IntPtr.Zero, workingDir, ref si, out pi); // 0x00000010 = CREATE_NEW_CONSOLE
         if (!ok) {
             int err = Marshal.GetLastWin32Error();
             throw new Exception("CreateProcess failed with error " + err);
@@ -73,10 +73,10 @@ public class DesktopLauncher {
 
 Add-Type -TypeDefinition $code -Language CSharp
 
-$cmdExe = "C:\Windows\System32\cmd.exe"
-$args = '/c "D:\Elbas\Code Learn\Tripory\start-tripory-emulator.bat"'
-$emuDir = "D:\Elbas\Code Learn\Tripory"
+$emuExe = "$env:LOCALAPPDATA\Android\Sdk\emulator\emulator.exe"
+$args = "-avd Tripory_Emulator"
+$emuDir = "$env:LOCALAPPDATA\Android\Sdk\emulator"
 
-Write-Host "Meluncurkan Tripory_Emulator ke layar desktop interaktif (WinSta0\Default)..."
-$pidResult = [DesktopLauncher]::LaunchOnDefaultDesktop($cmdExe, $args, $emuDir)
+Write-Host "Meluncurkan Tripory_Emulator langsung ke layar desktop interaktif (WinSta0\Default)..."
+$pidResult = [DesktopLauncher]::LaunchOnDefaultDesktop($emuExe, $args, $emuDir)
 Write-Host "Berhasil! Tripory_Emulator berjalan pada Desktop Utama dengan PID: $pidResult"

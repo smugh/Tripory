@@ -6,3 +6,5 @@ export * from './destination-usages';
 export * from './moments';
 export * from './app-metadata';
 export * from './album-customizations';
+export * from './agendas';
+export * from './agenda-items';

@@ -102,13 +102,27 @@ export default function TripsScreen() {
   };
   return (
     <ScreenContainer edges={['left', 'right']} style={{ paddingTop: 12 }}>
-      <View style={[styles.tabsContainer, { backgroundColor: isDarkMode ? colors.surface.muted : '#EEF2F6' }]}>
-        {filterTabs.map((tab) => <Pressable key={tab.key} accessibilityRole="tab" accessibilityState={{ selected: filter === tab.key }} onPress={() => setFilter(tab.key)} style={[styles.tabButton, filter === tab.key && { backgroundColor: isDarkMode ? colors.brand.blue : colors.brand.navy }]}>
-          <Typography variant="label" color={filter === tab.key ? '#FFFFFF' : colors.text.secondary} style={styles.tabText}>{tab.label}</Typography>
-        </Pressable>)}
+      <View style={[styles.planningTabs, { backgroundColor: isDarkMode ? colors.surface.muted : '#F1F5F9', borderColor: colors.border.default }]}>
+        <Pressable accessibilityRole="tab" accessibilityState={{ selected: true }} style={[styles.planningTab, { backgroundColor: isDarkMode ? colors.brand.blue : colors.brand.navy }]}>
+          <Ionicons name="map-outline" size={15} color="#FFFFFF" />
+          <Typography variant="label" color="#FFFFFF" style={styles.tabText}>{t.planning.trip}</Typography>
+        </Pressable>
+        <Pressable accessibilityRole="tab" accessibilityState={{ selected: false }} onPress={() => router.push('/agenda' as any)} style={styles.planningTab}>
+          <Ionicons name="list-outline" size={15} color={colors.text.secondary} />
+          <Typography variant="label" color={colors.text.secondary} style={styles.tabText}>{t.planning.agenda}</Typography>
+        </Pressable>
       </View>
       <View style={styles.toolbar}>
         <Typography variant="caption" color={colors.text.secondary} style={styles.secondaryText}>{filteredTrips.length} {text(filteredTrips.length === 1 ? 'trip' : 'trips', 'trip')}</Typography>
+        <View style={styles.statusTabs}>
+          {filterTabs.map((tab) => {
+            const selected = filter === tab.key;
+            return <Pressable key={tab.key} accessibilityRole="tab" accessibilityState={{ selected }} onPress={() => setFilter(tab.key)} style={styles.statusTab}>
+              <Typography variant="label" color={selected ? colors.brand.navy : colors.text.muted} style={styles.statusTabText}>{tab.label}</Typography>
+              <View style={[styles.statusTabIndicator, { backgroundColor: selected ? colors.brand.coral : 'transparent' }]} />
+            </Pressable>;
+          })}
+        </View>
         <View style={[styles.viewToggle, { backgroundColor: colors.surface.card, borderColor: colors.border.default }]}>
           {(['grid', 'list'] as const).map((mode) => <Pressable key={mode} accessibilityRole="button" accessibilityLabel={mode === 'grid' ? text('Grid view', 'Tampilan grid') : text('List view', 'Tampilan list')} accessibilityState={{ selected: viewMode === mode }} onPress={() => setViewMode(mode)} style={[styles.viewButton, viewMode === mode && { backgroundColor: colors.surface.muted }]}>
             <Ionicons name={mode === 'grid' ? 'grid' : 'list'} size={18} color={viewMode === mode ? colors.brand.coral : colors.text.muted} />
@@ -122,8 +136,12 @@ export default function TripsScreen() {
 }
 
 const styles = StyleSheet.create({
-  tabsContainer: { flexDirection: 'row', borderRadius: radius.full, padding: 3, marginTop: 4 },
-  tabButton: { flex: 1, paddingVertical: 8, borderRadius: radius.full, alignItems: 'center' },
+  planningTabs: { flexDirection: 'row', borderRadius: radius.full, padding: 4, marginTop: 4, marginBottom: 10, borderWidth: 1 },
+  planningTab: { flex: 1, minHeight: 38, flexDirection: 'row', gap: 7, justifyContent: 'center', alignItems: 'center', borderRadius: radius.full },
+  statusTabs: { flex: 1, minHeight: 40, flexDirection: 'row', alignItems: 'stretch', justifyContent: 'center' },
+  statusTab: { minWidth: 50, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 6 },
+  statusTabText: { fontSize: 12 },
+  statusTabIndicator: { position: 'absolute', bottom: 1, left: 7, right: 7, height: 2, borderRadius: 2 },
   tabText: { fontSize: 12 },
   toolbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginVertical: 12 },
   viewToggle: { flexDirection: 'row', borderWidth: 1, borderRadius: 10, padding: 3 },

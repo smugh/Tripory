@@ -1,6 +1,6 @@
 export const APP_CONFIG = {
   name: 'Tripory',
-  version: '1.2.1',
+  version: '1.2.2',
   defaultDbName: 'tripory.db',
   storageMediaDir: 'tripory/media',
   minTouchTarget: 44,
